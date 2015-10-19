@@ -5176,6 +5176,12 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         }
         break;
     case 0x1c7: /* cmpxchg8b */
+
+        /* **LAVIN**:
+         * To be added:
+         * * VMXON
+         */
+
         modrm = cpu_ldub_code(env, s->pc++);
         mod = (modrm >> 6) & 3;
         if ((mod == 3) || ((modrm & 0x38) != 0x8))

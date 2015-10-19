@@ -403,6 +403,11 @@
 #define XSTATE_ZMM_Hi256                (1ULL << 6)
 #define XSTATE_Hi16_ZMM                 (1ULL << 7)
 
+/* MSR ia32_feature_control bits */
+#define MSR_IA32_FEATURE_CONTROL_LOCK     (1ULL << 0)
+#define MSR_IA32_FEATURE_CONTROL_SMX      (1ULL << 1)
+#define MSR_IA32_FEATURE_CONTROL_NONSMX   (1ULL << 2)
+
 
 /* CPUID feature words */
 typedef enum FeatureWord {
