@@ -128,6 +128,152 @@ struct QEMU_PACKED vmcs_host_state_area {
 	uint64_t msr_ia32_efer;
 };
 
+struct QEMU_PACKED vmcs_vmexecution_control_fields {
+
+	uint32_t async_event_control;
+	#define VM_EXEC_ASYNC_EXTERNAL_INT_EXIT  	(1U << 0)
+	#define VM_EXEC_ASYNC_NMI_EXIT				(1U << 3)
+	#define VM_EXEC_ASYNC_VIRT_NMI				(1U << 5)
+	#define VM_EXEC_ASYNC_ACTIVATE_TIMER		(1U << 6)
+	#define VM_EXEC_ASYNC_PROCESS_INT			(1U << 7)
+
+
+	uint32_t primary_control;	
+	#define VM_EXEC_PRIMARY_INT_WINDOW_EXIT 		2
+	#define VM_EXEC_PRIMARY_USE_TSC_OFFSET 			3
+	#define VM_EXEC_PRIMARY_HLT_EXIT 				7
+	#define 
+	/* incomplete */
+
+	uint32_t secondary_control;
+	/* incomplete */
+	
+	uint32_t exception_bitmap;
+	/* one bit per exception */
+
+	uint64_t io_bitmap_addr_A;
+	uint64_t io_bitmap_addr_B;
+
+	uint64_t tsc_offset;
+	uint64_t tsc_multiplier;
+
+	target_ulong mask_cr0;
+	target_ulong read_shadow_cr0;
+	target_ulong mask_cr4;
+	target_ulong read_shadow_cr4;
+
+	target_ulong cr3_target[4];
+	uint32_t cr3_target_count;
+
+	uint64_t apic_access_address;
+	uint64_t virt_apic_address;
+	uint32_t tpr_threshold;
+	uint64_t eoi_exit_bitmap[4];
+	uint16_t posted_interrupt_notification_vector;
+	uint64_t posted_interrupt_descriptor_addr;
+
+	uint64_t read_bitmap_low_msr;
+	uint64_t read_bitmap_high_msr;
+	uint64_t write_bitmap_low_msr;
+	uint64_t write_bitmap_high_msr;
+
+	uint64_t executive_vmcs_pointer;
+
+	struct QEMU_PACKED {
+		uint32_t mem_type: 3;
+		#define EPTP_MEM_UNCACHEABLE 1
+		#define EPTP_MEM_WRITEBACK 6
+
+		uint32_t ept_page_walk_len_decr_1:3;
+		uint32_t access_dirty:1;
+		uint32_t reserved0:5;
+		//#assume physical address is 32 bits
+		uint32_t rpt_pml4_table:20;
+		uint32_t reserved;
+	} eptp;
+
+	uint16_t vpid;
+	uint32_t ple_gap;
+	uint32_t ple_window;
+
+	uint64_t vm_function_control_vector;
+	uint64_t eptp_list_address;
+
+	uint64_t virt_exception_info_addr;
+	uint16_t eptp_index;
+
+	uint64_t xss_exiting_bitmap;
+};
+
+struct QEMU_PACKED vmcs_vmexit_control_fields {
+	
+	uint32_t vmexit_controls;
+
+	uint32_t msr_store_count;
+	uint64_t msr_store_addr;
+	uint32_t msr_load_count;
+	uint64_t msr_load_addr;
+};
+
+struct QEMU_PACKED vmcs_vmentry_control_fields {
+	uint32_t vmentry_controls;
+
+	uint32_t msr_load_count;
+	uint64_t msr_load_addr;
+
+	struct QEMU_PACKED{
+		uint8_t vector;
+		uint32_t type:3;
+		uint32_t deliver_err_code:1;
+		uint32_t reserved0:19;
+		uint32_t valid:1;
+	} interruption_info;
+
+	uint32_t exception_err_code;
+	uint32_t instruction_length;
+};
+
+struct QEMU_PACKED vmcs_vmexit_information_fields {
+
+	struct QEMU_PACKED {
+		uint16_t basic_reason;
+		uint16_t reserved0:
+		uint32_t pending_mtf_vm_exit:1;
+		uint32_t vm_exit_from_vmx_root_op:1;
+		uint32_t reserved1:1;
+		uint32_t vm_entry_failure:1;
+	} exit_reason;
+	target_ulong exit_qualification;
+	target_ulong guest_linear_addr;
+	uint64_t guest_phys_addr;
+		struct QEMU_PACKED{
+		uint8_t vector;
+		uint32_t type:3;
+		uint32_t error_code_valid:1;
+		uint32_t nmi_unblocking_iret:1;
+		uint32_t reserved0:18;
+		uint32_t valid:1;
+	} interruption_info;
+
+	uint32_t interruption_error_code;
+
+	struct QEMU_PACKED {
+		uint8_t vector;
+		uint32_t type:3;
+		uint32_t err_code_valid:1;
+		uint32_t undefined:1;
+		uint32_t reserved0:18;
+		uint32_t valid:1;
+	} idt_vectoring_info;
+	uint32_t idt_vectoring_err_code;
+
+	uint32_t instruction_length;
+	uint32_t instruction_info;
+
+	uint32_t instruction_error_field;
+
+};
+
 typedef struct QEMU_PACKED vtx_vmcs {
 
 	uint32_t revision_identifier:31;
