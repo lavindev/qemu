@@ -202,6 +202,12 @@ DEF_HELPER_1(enter_mmx, void, env)
 DEF_HELPER_1(emms, void, env)
 DEF_HELPER_3(movq, void, env, ptr, ptr)
 
+/* VT-x */
+
+DEF_HELPER_2(vtx_vmxon, void, env, i64)
+DEF_HELPER_1(vtx_vmxoff, void, env)
+
+
 #define SHIFT 0
 #include "ops_sse_header.h"
 #define SHIFT 1

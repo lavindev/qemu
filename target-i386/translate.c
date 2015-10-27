@@ -5180,11 +5180,19 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         /* **LAVIN**:
          * To be added:
          * * VMXON
+         * * VMPTRLD
+         * * VMCLEAR
+         * * VMPTRST
          */
 
         modrm = cpu_ldub_code(env, s->pc++);
         mod = (modrm >> 6) & 3;
-        if ((mod == 3) || ((modrm & 0x38) != 0x8))
+        reg = (modrm >> 3) & 7;
+
+        if (reg == 6){
+            /* vmxon */
+            gen_helper_vtx_vmxon(cpu_env);
+        } else if ((mod == 3) || ((modrm & 0x38) != 0x8))
             goto illegal_op;
 #ifdef TARGET_X86_64
         if (dflag == MO_64) {

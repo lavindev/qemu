@@ -64,7 +64,7 @@ struct QEMU_PACKED vmcs_guest_state_area {
 	uint32_t smbase;
 
 	// NON REGISTER STATE
-	uint32_t activity state;
+	uint32_t activity_state;
 	#define ACTIVITY_STATE_ACTIVE 		(1U << 0)
 	#define ACTIVITY_STATE_HLT 			(1U << 1)
 	#define ACTIVITY_STATE_SHUTDOWN 	(1U << 2)
@@ -142,7 +142,7 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 	#define VM_EXEC_PRIMARY_INT_WINDOW_EXIT 		2
 	#define VM_EXEC_PRIMARY_USE_TSC_OFFSET 			3
 	#define VM_EXEC_PRIMARY_HLT_EXIT 				7
-	#define 
+	//#define 
 	/* incomplete */
 
 	uint32_t secondary_control;
@@ -237,7 +237,7 @@ struct QEMU_PACKED vmcs_vmexit_information_fields {
 
 	struct QEMU_PACKED {
 		uint16_t basic_reason;
-		uint16_t reserved0:
+		uint32_t reserved0:12;
 		uint32_t pending_mtf_vm_exit:1;
 		uint32_t vm_exit_from_vmx_root_op:1;
 		uint32_t reserved1:1;
@@ -280,16 +280,27 @@ typedef struct QEMU_PACKED vtx_vmcs {
 	uint32_t shadow_vmcs_indicator:1;
 	uint32_t vmx_abort_indicator;
 
-	struct vmcs_guess_state_area;
-	struct vmcs_host_state_area;
+	struct vmcs_guest_state_area vmcs_guest_state_area;
+	struct vmcs_host_state_area vmcs_host_state_area;
 	uint32_t vmcs_vmexecution_control_fields;
 	uint32_t vmcs_vmexit_control_fields;
-	struct vmcs_vmentry_control_fields;
-	struct vmcs_vmexit_information_fields;
+	struct vmcs_vmentry_control_fields vmcs_vmentry_control_fields;
+	struct vmcs_vmexit_information_fields vmcs_vmexit_information_fields;
 
 	/** Left off at page 16 -- */
 
 
 } vtx_vmcs_t;
+
+typedef enum vm_exception {
+	SUCCEED,
+	FAIL,
+	FAIL_INVALID,
+	FAIL_VALID
+} vm_exception_t;
+
+
+void helper_vtx_vmxon(CPUX86State *env, uint64_t vmcs_addr_phys);
+void helper_vtx_vmxoff(CPUX86State * env);
 
 #endif

@@ -989,6 +989,13 @@ typedef struct CPUX86State {
     uint64_t xss;
 
     TPRAccess tpr_access_type;
+
+    void * vmcs; // cast when needed to vtx_vmcs_t
+    uint32_t vmx_operation;
+    #define VMX_DISABLED 0
+    #define VMX_ROOT_OPERATION 1
+    #define VMX_NON_ROOT_OPERATION 2
+    uint64_t msr_ia32_vmx_basic; /* TODO: Appendix A.1, struct thus ? */
 } CPUX86State;
 
 #include "cpu-qom.h"
