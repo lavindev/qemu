@@ -279,6 +279,9 @@ typedef struct QEMU_PACKED vtx_vmcs {
 	uint32_t revision_identifier:31;
 	uint32_t shadow_vmcs_indicator:1;
 	uint32_t vmx_abort_indicator;
+	uint32_t launch_state;
+	#define LAUNCH_STATE_CLEAR 0
+	#define LAUNCH_STATE_LAUNCHED 1
 
 	struct vmcs_guest_state_area vmcs_guest_state_area;
 	struct vmcs_host_state_area vmcs_host_state_area;
