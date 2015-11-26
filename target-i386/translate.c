@@ -5191,18 +5191,19 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
 
         if (reg == 6){
             /* vmxon */
-            gen_helper_vtx_vmxon(cpu_env);
+            gen_lea_modrm(env, s, modrm);
+            gen_helper_vtx_vmxon(cpu_env, tcg_const_i64(0xFF0000) );
         } else if ((mod == 3) || ((modrm & 0x38) != 0x8))
             goto illegal_op;
 #ifdef TARGET_X86_64
-        if (dflag == MO_64) {
+        else if (dflag == MO_64) {
             if (!(s->cpuid_ext_features & CPUID_EXT_CX16))
                 goto illegal_op;
             gen_lea_modrm(env, s, modrm);
             gen_helper_cmpxchg16b(cpu_env, cpu_A0);
-        } else
+        }
 #endif        
-        {
+        else {
             if (!(s->cpuid_features & CPUID_CX8))
                 goto illegal_op;
             gen_lea_modrm(env, s, modrm);
@@ -7171,6 +7172,18 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         mod = (modrm >> 6) & 3;
         op = (modrm >> 3) & 7;
         rm = modrm & 7;
+
+        /* vtx calls */
+        switch (modrm){
+            case 0xc1: break;
+            case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
+            //case 0xc3: gen_helper_vtx_vmresume(cpu_env); break;
+            case 0xc4: gen_helper_vtx_vmxoff(cpu_env); break;
+            default: break;
+        }
+        // exit from 0x101 if vtx call was made
+        if (0xc1 <= modrm && modrm <= 0xc4) break; 
+
         switch(op) {
         case 0: /* sgdt */
             if (mod == 3)

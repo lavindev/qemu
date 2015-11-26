@@ -1,6 +1,7 @@
 #ifndef __VTX_H
 #define __VTX_H
 
+
 /** Reference: 24.2 */
 
 typedef struct QEMU_PACKED segment_registers_state {
@@ -302,8 +303,5 @@ typedef enum vm_exception {
 	FAIL_VALID
 } vm_exception_t;
 
-
-void helper_vtx_vmxon(CPUX86State *env, uint64_t vmcs_addr_phys);
-void helper_vtx_vmxoff(CPUX86State * env);
 
 #endif
