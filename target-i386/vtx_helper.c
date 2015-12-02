@@ -55,8 +55,89 @@ static void clear_address_range_monitoring(CPUX86State * env){
 }
 
 
-/** SECTION 23.7 **/
-void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_addr_phys) {
+static bool vmlaunch_check_vmx_controls(CPUX86State * env){
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
+
+	/* 1. TODO: reserved bits Appendinix A.3.1 */
+	/* 2. TODO: reserved bits A.3.2 */
+
+	// 	#define VM_EXEC_PRIM_INTERRUPT_WINDOW_EXITING 	(1U << 2)
+	// #define VM_EXEC_PRIM_USE_TSC_OFFSETTING 		(1U << 3)
+	// #define VM_EXEC_PRIM_HLT_EXITING 				(1U << 7)
+	// #define VM_EXEC_PRIM_INVLPG_EXITING 			(1U << 9)
+	// #define VM_EXEC_PRIM_MWAIT_EXITING 				(1U << 10)
+	// #define VM_EXEC_PRIM_RDPMC_EXITING 				(1U << 11)
+	// #define VM_EXEC_PRIM_RDTSC_EXITING 				(1U << 12)
+	// #define VM_EXEC_PRIM_CR3_LOAD_EXITING 			(1U << 15)
+	// #define VM_EXEC_PRIM_CR3_STORE_EXITING 			(1U << 16)
+	// #define VM_EXEC_PRIM_CR8_LOAD_EXITING 			(1U << 19)
+	// #define VM_EXEC_PRIM_CR8_STORE_EXITING 			(1U << 20)
+	// #define VM_EXEC_PRIM_USE_TPR_SHADOW 			(1U << 21)
+	// #define VM_EXEC_PRIM_NMI_WINDOW_EXITING 		(1U << 22)
+	// #define VM_EXEC_PRIM_MOV_DR_EXITING 			(1U << 23)
+	// #define VM_EXEC_PRIM_UNCONDITIONAL_IO_EXITING 	(1U << 24)
+	// #define VM_EXEC_PRIM_USE_IO_BITMAPS 			(1U << 25)
+	// #define VM_EXEC_PRIM_MONITOR_TRAP_FLAG 			(1U << 27)
+	// #define VM_EXEC_PRIM_USE_MSR_BITMAPS 			(1U << 28)
+	// #define VM_EXEC_PRIM_MONITOR_EXITING 			(1U << 29)
+	// #define VM_EXEC_PRIM_PAUSE_EXITING 				(1U << 30)
+	// #define VM_EXEC_PRIM_ACTIVATE_SECONDARY 		(1U << 31)
+
+	struct vmcs_vmexecution_control_fields * c = &(vmcs->vmcs_vmexecution_control_fields);
+
+	bool check_secondary = true;
+	uint32_t primary_control = c->primary_control;
+	uint32_t secondary_control = c->secondary_control;
+
+	if (ISSET(primary_control, VM_EXEC_PRIM_ACTIVATE_SECONDARY)){
+		/* reserved bits in secondary must be cleared */
+	} else {
+		check_secondary = false;
+	}
+
+	if (c->cr3_target_count > 4) return false;
+
+	if (ISSET(primary_control, VM_EXEC_PRIM_USE_IO_BITMAPS)){
+		if ( (io_bitmap_addr_A & 0xFFF) || (io_bitmap_addr_A >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (io_bitmap_addr_B & 0xFFF) || (io_bitmap_addr_B >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+	}
+
+	if (ISSET(primary_control, VM_EXEC_PRIM_USE_MSR_BITMAPS)){
+		if ( (read_bitmap_low_msr & 0xFFF) || (read_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (read_bitmap_high_msr & 0xFFF) || (read_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (write_bitmap_low_msr & 0xFFF) || (write_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (write_bitmap_high_msr & 0xFFF) || (write_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+	}
+
+	if (ISSET(primary_control, VM_EXEC_PRIM_USE_TPR_SHADOW)){
+		if ( (virt_apic_address & 0xFFF) || (virt_apic_address >> TARGET_PHYS_ADDR_SPACE_BITS) ) return false;
+		/* TODO: clear vtpr */
+	}
+
+	if (check_secondary && ISSET(primary_control, VM_EXEC_PRIM_USE_TPR_SHADOW) && !ISSET(secondary_control, VM_EXEC_SEC_))
+
+
+	return true;
+}
+
+static bool vmlaunch_check_host_state(CPUX86State * env){
+	return true;
+}
+
+static bool vmlaunch_check_guest_state(CPUX86State * env){
+	return true;
+}
+
+
+/** helper_vtx_vmxon
+ * @arg - env - CPU state env
+ * @arg - vmxon_region_ptr - virtual address of physical pointer location
+ *		  to vmxon_region. 
+ *		  Dereference vmxon_region_ptr to get physical addr of vmxon_region. 
+ * 		  Dereference this physical addr to get rev (start of vmxon_region)
+ */
+void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_ptr) {
 
 	LOG_ENTRY
 
@@ -65,7 +146,7 @@ void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_addr_phys) {
 	int32_t rev;
 
 	/* CHECK: DESC_L_MASK 64 bit only? */
-	if (!vmxon_region_addr_phys or 
+	if (!vmxon_region_ptr or 
 		!ISSET(env->cr[0], CR0_PE_MASK) or 
 		!ISSET(env->cr[4], CR4_VMXE_MASK) or 
 		ISSET(env->eflags, VM_MASK) or  
@@ -86,12 +167,12 @@ void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_addr_phys) {
 			raise_exception(env, EXCP0D_GPF);
 		} else {
 			/* check 4KB align or bits beyond phys range*/
-			if ((vmxon_region_addr_phys & 0xFFF) or (vmxon_region_addr_phys >> TARGET_PHYS_ADDR_SPACE_BITS)){
+			if ((vmxon_region_ptr & 0xFFF) or (vmxon_region_ptr >> TARGET_PHYS_ADDR_SPACE_BITS)){
 				LOG("Not 4KB aligned, or bits set beyond range")
 				vm_exception(FAIL_INVALID, 0, env);
 			} else {
-				// deref vmxon_region_addr_phys -> buf
-				//cpu_physical_memory_rw(vmxon_region_addr_phys, (uint8_t *) &rev_buf, 4, 0);
+				// deref vmxon_region_ptr -> buf
+				//cpu_physical_memory_rw(vmxon_region_ptr, (uint8_t *) &rev_buf, 4, 0);
 				rev =  (int32_t) REVERSE_ENDIAN_32(rev_buf); // MARK
 				/* TODO: cleanup, use structs for msr */
 				if ((rev & 0x7FFFFFFF) != (env->msr_ia32_vmx_basic & 0x7FFFFFFF) or
@@ -288,7 +369,9 @@ void helper_vtx_vmfunc(CPUX86State * env){
 #endif
 
 void helper_vtx_vmlaunch(CPUX86State * env){
-		
+	
+	LOG_ENTRY
+
 	int cpl = env->segs[R_CS].selector & 0x3;
 
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
@@ -298,16 +381,23 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		!ISSET(env->cr[0], CR0_PE_MASK) or
 		ISSET(env->eflags, VM_MASK) or 
 		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+			LOG("ILLEGAL OPCODE EXCEPTION")
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+
+		LOG("VM EXIT")
 		/* vm exit */
 	} else if (cpl > 0){
+		LOG("GENERAL PROTECTION EXCEPTION")
 		raise_exception(env, EXCP0D_GPF);
 	} else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
+
+		LOG("INVALID/UNINITIALIZED VMCS")
 		vm_exception(FAIL_INVALID, 0, env);
 	// } else if (/* events blocked by MOV SS */){
 		// vm_exception(FAIL, 26, env);
 	} else if (vmcs->launch_state != LAUNCH_STATE_CLEAR){
+		LOG("ERROR: VM LAUNCH STATE NOT CLEAR")
 		vm_exception(FAIL, 4, env);
 	} else {
 		// /* check settings */
@@ -342,6 +432,9 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		// 	}
 		// }
 	}
+
+
+	LOG_EXIT
 
 }
 #ifndef INCLUDE

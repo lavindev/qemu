@@ -140,11 +140,27 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 
 
 	uint32_t primary_control;	
-	#define VM_EXEC_PRIMARY_INT_WINDOW_EXIT 		2
-	#define VM_EXEC_PRIMARY_USE_TSC_OFFSET 			3
-	#define VM_EXEC_PRIMARY_HLT_EXIT 				7
-	//#define 
-	/* incomplete */
+	#define VM_EXEC_PRIM_INTERRUPT_WINDOW_EXITING 	(1U << 2)
+	#define VM_EXEC_PRIM_USE_TSC_OFFSETTING 		(1U << 3)
+	#define VM_EXEC_PRIM_HLT_EXITING 				(1U << 7)
+	#define VM_EXEC_PRIM_INVLPG_EXITING 			(1U << 9)
+	#define VM_EXEC_PRIM_MWAIT_EXITING 				(1U << 10)
+	#define VM_EXEC_PRIM_RDPMC_EXITING 				(1U << 11)
+	#define VM_EXEC_PRIM_RDTSC_EXITING 				(1U << 12)
+	#define VM_EXEC_PRIM_CR3_LOAD_EXITING 			(1U << 15)
+	#define VM_EXEC_PRIM_CR3_STORE_EXITING 			(1U << 16)
+	#define VM_EXEC_PRIM_CR8_LOAD_EXITING 			(1U << 19)
+	#define VM_EXEC_PRIM_CR8_STORE_EXITING 			(1U << 20)
+	#define VM_EXEC_PRIM_USE_TPR_SHADOW 			(1U << 21)
+	#define VM_EXEC_PRIM_NMI_WINDOW_EXITING 		(1U << 22)
+	#define VM_EXEC_PRIM_MOV_DR_EXITING 			(1U << 23)
+	#define VM_EXEC_PRIM_UNCONDITIONAL_IO_EXITING 	(1U << 24)
+	#define VM_EXEC_PRIM_USE_IO_BITMAPS 			(1U << 25)
+	#define VM_EXEC_PRIM_MONITOR_TRAP_FLAG 			(1U << 27)
+	#define VM_EXEC_PRIM_USE_MSR_BITMAPS 			(1U << 28)
+	#define VM_EXEC_PRIM_MONITOR_EXITING 			(1U << 29)
+	#define VM_EXEC_PRIM_PAUSE_EXITING 				(1U << 30)
+	#define VM_EXEC_PRIM_ACTIVATE_SECONDARY 		(1U << 31)
 
 	uint32_t secondary_control;
 	/* incomplete */
@@ -280,19 +296,20 @@ typedef struct QEMU_PACKED vtx_vmcs {
 	uint32_t revision_identifier:31;
 	uint32_t shadow_vmcs_indicator:1;
 	uint32_t vmx_abort_indicator;
-	uint32_t launch_state;
-	#define LAUNCH_STATE_CLEAR 0
-	#define LAUNCH_STATE_LAUNCHED 1
 
 	struct vmcs_guest_state_area vmcs_guest_state_area;
 	struct vmcs_host_state_area vmcs_host_state_area;
-	uint32_t vmcs_vmexecution_control_fields;
+	struct vmcs_vmexecution_control_fields vmcs_vmexecution_control_fields;
+	
 	uint32_t vmcs_vmexit_control_fields;
 	struct vmcs_vmentry_control_fields vmcs_vmentry_control_fields;
 	struct vmcs_vmexit_information_fields vmcs_vmexit_information_fields;
 
 	/** Left off at page 16 -- */
 
+	uint32_t launch_state;
+	#define LAUNCH_STATE_CLEAR 0
+	#define LAUNCH_STATE_LAUNCHED 1
 
 } vtx_vmcs_t;
 
