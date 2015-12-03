@@ -55,40 +55,19 @@ static void clear_address_range_monitoring(CPUX86State * env){
 }
 
 
-static bool vmlaunch_check_vmx_controls(CPUX86State * env){
-
+static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
+	
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
 
 	/* 1. TODO: reserved bits Appendinix A.3.1 */
 	/* 2. TODO: reserved bits A.3.2 */
-
-	// 	#define VM_EXEC_PRIM_INTERRUPT_WINDOW_EXITING 	(1U << 2)
-	// #define VM_EXEC_PRIM_USE_TSC_OFFSETTING 		(1U << 3)
-	// #define VM_EXEC_PRIM_HLT_EXITING 				(1U << 7)
-	// #define VM_EXEC_PRIM_INVLPG_EXITING 			(1U << 9)
-	// #define VM_EXEC_PRIM_MWAIT_EXITING 				(1U << 10)
-	// #define VM_EXEC_PRIM_RDPMC_EXITING 				(1U << 11)
-	// #define VM_EXEC_PRIM_RDTSC_EXITING 				(1U << 12)
-	// #define VM_EXEC_PRIM_CR3_LOAD_EXITING 			(1U << 15)
-	// #define VM_EXEC_PRIM_CR3_STORE_EXITING 			(1U << 16)
-	// #define VM_EXEC_PRIM_CR8_LOAD_EXITING 			(1U << 19)
-	// #define VM_EXEC_PRIM_CR8_STORE_EXITING 			(1U << 20)
-	// #define VM_EXEC_PRIM_USE_TPR_SHADOW 			(1U << 21)
-	// #define VM_EXEC_PRIM_NMI_WINDOW_EXITING 		(1U << 22)
-	// #define VM_EXEC_PRIM_MOV_DR_EXITING 			(1U << 23)
-	// #define VM_EXEC_PRIM_UNCONDITIONAL_IO_EXITING 	(1U << 24)
-	// #define VM_EXEC_PRIM_USE_IO_BITMAPS 			(1U << 25)
-	// #define VM_EXEC_PRIM_MONITOR_TRAP_FLAG 			(1U << 27)
-	// #define VM_EXEC_PRIM_USE_MSR_BITMAPS 			(1U << 28)
-	// #define VM_EXEC_PRIM_MONITOR_EXITING 			(1U << 29)
-	// #define VM_EXEC_PRIM_PAUSE_EXITING 				(1U << 30)
-	// #define VM_EXEC_PRIM_ACTIVATE_SECONDARY 		(1U << 31)
 
 	struct vmcs_vmexecution_control_fields * c = &(vmcs->vmcs_vmexecution_control_fields);
 
 	bool check_secondary = true;
 	uint32_t primary_control = c->primary_control;
 	uint32_t secondary_control = c->secondary_control;
+	uint32_t async_event_control = c->async_event_control;
 
 	if (ISSET(primary_control, VM_EXEC_PRIM_ACTIVATE_SECONDARY)){
 		/* reserved bits in secondary must be cleared */
@@ -115,10 +94,91 @@ static bool vmlaunch_check_vmx_controls(CPUX86State * env){
 		/* TODO: clear vtpr */
 	}
 
-	if (check_secondary && ISSET(primary_control, VM_EXEC_PRIM_USE_TPR_SHADOW) && !ISSET(secondary_control, VM_EXEC_SEC_))
+	if (check_secondary && 
+		ISSET(primary_control, VM_EXEC_PRIM_USE_TPR_SHADOW) && 
+		!ISSET(secondary_control, VM_EXEC_SEC_VIRT_APIC_ACCESS) &&
+		!ISSET(secondary_control, VM_EXEC_SEC_VIRTUAL_INT_DELIVERY)){
+		/* tpr_threshold[7:4] must not be greater than VTPR */
+	}
 
+	if (check_secondary && 
+		!ISSET(async_event_control, VM_EXEC_ASYNC_NMI_EXIT) && ISSET(secondary_control, VM_EXEC_SEC_VIRTUAL_INT_DELIVERY)){
+		return false;
+	}
+
+	if (!ISSET(async_event_control,VM_EXEC_ASYNC_VIRT_NMI) && ISSET(primary_control, VM_EXEC_PRIM_NMI_WINDOW_EXITING)){
+		return false;
+	}
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_VIRT_APIC_ACCESS) &&
+		((c->apic_access_address & 0xFFF) || (c->apic_access_address >> TARGET_PHYS_ADDR_SPACE_BITS))){
+		return false;
+	}
+
+	if (check_secondary &&
+		!ISSET(primary_control, VM_EXEC_PRIM_USE_TPR_SHADOW) &&
+		(ISSET(secondary_control, VM_EXEC_SEC_VIRT_x2APIC) || ISSET(secondary_control, VM_EXEC_SEC_APIC_REG_VIRT) || ISSET(secondary_control, VM_EXEC_SEC_VIRTUAL_INT_DELIVERY))){
+		return false;
+	}
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_VIRT_x2APIC) && ISSET(secondary_control, VM_EXEC_SEC_VIRT_APIC_ACCESS)){
+		return false;
+	}
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_VIRTUAL_INT_DELIVERY) && !ISSET(async_event_control, VM_EXEC_ASYNC_EXTERNAL_INT_EXIT)){
+		return false;
+	}
+
+	if () /* later */
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_ENABLE_VPID)){
+		if (c->vpid === 0x000) return false;
+	}
+
+	if () /* later */
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_UNRESTRICTED_GUEST) && !ISSET(secondary_control, VM_EXEC_SEC_ENABLE_EPT)){
+		return false;
+	}
+
+	if () /* later */
+
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_VMCS_SHADOWING)){
+		if ( (read_bitmap_low_msr & 0xFFF) || (read_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (read_bitmap_high_msr & 0xFFF) || (read_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (write_bitmap_low_msr & 0xFFF) || (write_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (write_bitmap_high_msr & 0xFFF) || (write_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+	}
+
+	if (check_secondary &&
+		ISSET(secondary_control, VM_EXEC_SEC_EPT_VIOLATION_VE)){
+		if ( (virt_exception_info_addr & 0xFFF) || (virt_exception_info_addr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;	
+	}
 
 	return true;
+}
+
+static bool vmlaunch_check_vmx_controls_exit(CPUX86State * env){
+	return true;
+}
+
+static bool vmlaunch_check_vmx_controls_entry(CPUX86State * env){
+	return true;
+}
+
+static bool vmlaunch_check_vmx_controls(CPUX86State * env){
+
+	return vmlaunch_check_vmx_controls_execution(env) &&
+		   vmlaunch_check_vmx_controls_exit(env) &&
+		   vmlaunch_check_vmx_controls_entry(env);
+
 }
 
 static bool vmlaunch_check_host_state(CPUX86State * env){

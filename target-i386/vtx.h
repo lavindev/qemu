@@ -163,7 +163,25 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 	#define VM_EXEC_PRIM_ACTIVATE_SECONDARY 		(1U << 31)
 
 	uint32_t secondary_control;
-	/* incomplete */
+	#define VM_EXEC_SEC_VIRT_APIC_ACCESS 		(1U << 0)
+	#define VM_EXEC_SEC_ENABLE_EPT 				(1U << 1)
+	#define VM_EXEC_SEC_DESCRIPTOR_TABLE_EXIT 	(1U << 2)
+	#define VM_EXEC_SEC_ENABLE_RDTSCP 			(1U << 3)
+	#define VM_EXEC_SEC_VIRT_x2APIC 			(1U << 4)
+	#define VM_EXEC_SEC_ENABLE_VPID 			(1U << 5)
+	#define VM_EXEC_SEC_WBINVD_EXIT 			(1U << 6)
+	#define VM_EXEC_SEC_UNRESTRICTED_GUEST 		(1U << 7)
+	#define VM_EXEC_SEC_APIC_REG_VIRT 			(1U << 8)
+	#define VM_EXEC_SEC_VIRTUAL_INT_DELIVERY 	(1U << 9)
+	#define VM_EXEC_SEC_PAUSE_LOOP_EXIT 		(1U << 10)
+	#define VM_EXEC_SEC_RDRAND_EXIT 			(1U << 11)
+	#define VM_EXEC_SEC_ENABLE_INVPCID 			(1U << 12)
+	#define VM_EXEC_SEC_ENABLE_VM_FUNC 			(1U << 13)
+	#define VM_EXEC_SEC_VMCS_SHADOWING 			(1U << 14)
+	#define VM_EXEC_SEC_RDSEED_EXIT 			(1U << 16)
+	#define VM_EXEC_SEC_EPT_VIOLATION_VE 		(1U << 18)
+	#define VM_EXEC_SEC_ENABLE_XSAVES_XSRSTORS 	(1U << 20)
+	#define VM_EXEC_SEC_TSC_SCALING 			(1U << 25)
 	
 	uint32_t exception_bitmap;
 	/* one bit per exception */
