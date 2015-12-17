@@ -56,6 +56,8 @@ static void clear_address_range_monitoring(CPUX86State * env){
 
 
 static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
+
+	return true;
 	
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
 
@@ -167,10 +169,60 @@ static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
 
 static bool vmlaunch_check_vmx_controls_exit(CPUX86State * env){
 	return true;
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
+
+	struct vmcs_vmexecution_control_fields * c = &(vmcs->vmcs_vmexecution_control_fields);
+	struct vmcs_vmexit_control_fields * e = &(vmcs->vmcs_vmexit_control_fields);
+
+	uint32_t vmexit_controls = e->vmexit_controls;
+
+	if (0 /* check reserved bits */){
+		return false;
+	}
+
+	if (!ISSET(c->async_event_control, VM_EXEC_ASYNC_ACTIVATE_TIMER) && ISSET(vmexit_controls, VM_EXIT_SAVE_PREEMPT_TIMER)){
+		return false;
+	}
+
+	if (e->msr_store_count){
+		if ((e->msr_store_addr & 0xF) ||
+			(e->msr_store_addr >> TARGET_PHYS_ADDR_SPACE_BITS)){
+			return false;
+		}
+
+		if ((uint64_t)(e->msr_store_addr + (e->msr_store_count * 16) - 1) >> TARGET_PHYS_ADDR_SPACE_BITS){
+			return false;
+		}
+	}
+
+	/* IA32_VMX_BASIX[48] -- something */
+
+	if (e->msr_load_count){
+		if ((e->msr_load_addr & 0xF) ||
+			(e->msr_load_addr >> TARGET_PHYS_ADDR_SPACE_BITS)){
+			return false;
+		}
+
+		if ((uint64_t)(e->msr_load_addr + (e->msr_load_count * 16) - 1) >> TARGET_PHYS_ADDR_SPACE_BITS){
+			return false;
+		}
+	}
+
+	/* IA32_VMX_BASIX[48] -- something */
+
+	return true;
+
 }
 
 static bool vmlaunch_check_vmx_controls_entry(CPUX86State * env){
 	return true;
+
+	if (0 /* check reserved bits */){
+		return false;
+	}
+
+	
 }
 
 static bool vmlaunch_check_vmx_controls(CPUX86State * env){

@@ -243,6 +243,15 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 struct QEMU_PACKED vmcs_vmexit_control_fields {
 	
 	uint32_t vmexit_controls;
+	#define VM_EXIT_SAVE_DEBUG_CONTROLS 	(1U << 2)
+	#define VM_EXIT_HOST_ADDR_SPACE_SIZE 	(1U << 9)
+	#define VM_EXIT_LD_PERF_GLOB 			(1U << 12)
+	#define VM_EXIT_ACK_INT 				(1U << 15)
+	#define VM_EXIT_SAVE_PAT 				(1U << 18)
+	#define VM_EXIT_LOAD_PAT 				(1U << 19)
+	#define VM_EXIT_SAVE_EFER 				(1U << 20)
+	#define VM_EXIT_LOAD_EFER 				(1U << 21)
+	#define VM_EXIT_SAVE_PREEMPT_TIMER 		(1U << 22)
 
 	uint32_t msr_store_count;
 	uint64_t msr_store_addr;
@@ -252,13 +261,28 @@ struct QEMU_PACKED vmcs_vmexit_control_fields {
 
 struct QEMU_PACKED vmcs_vmentry_control_fields {
 	uint32_t vmentry_controls;
+	#define VM_ENTRY_LOAD_DEBUG_CONTROLS 	(1U << 2)
+	#define VM_ENTRY_GUEST					(1U << 9)
+	#define VM_ENTRY_SMM_ENTRY				(1U << 10)
+	#define VM_ENTRY_DEACTIVATE_DUAL_MON	(1U << 11)
+	#define VM_ENTRY_LOAD_PERF_GLOB			(1U << 13)
+	#define VM_ENTRY_LOAD_PAT				(1U << 14)
+	#define VM_ENTRY_LOAD_EFER				(1U << 15)
 
 	uint32_t msr_load_count;
 	uint64_t msr_load_addr;
 
-	struct QEMU_PACKED{
+	struct QEMU_PACKED {
 		uint8_t vector;
 		uint32_t type:3;
+		#define INT_TYPE_EXT 			0x0
+		#define INT_TYPE_RESVD 			0x1
+		#define INT_TYPE_NMI 			0x2
+		#define INT_TYPE_HW 			0x3
+		#define INT_TYPE_SW 			0x4
+		#define INT_TYPE_PRIV_SW_EXCEP 	0x5
+		#define INT_TYPE_SW_EXCEP 		0x6
+		#define INT_TYPE_OTHER 			0x7
 		uint32_t deliver_err_code:1;
 		uint32_t reserved0:19;
 		uint32_t valid:1;
