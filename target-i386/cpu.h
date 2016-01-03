@@ -996,6 +996,12 @@ typedef struct CPUX86State {
     #define VMX_ROOT_OPERATION 1
     #define VMX_NON_ROOT_OPERATION 2
     uint64_t msr_ia32_vmx_basic; /* TODO: Appendix A.1, struct thus ? */
+
+    // added MSRs for VT-x
+    uint64_t msr_ia32_debugctl;
+    
+
+
 } CPUX86State;
 
 #include "cpu-qom.h"

@@ -2347,6 +2347,7 @@ static inline void gen_stack_update(DisasContext *s, int addend)
 /* Generate a push. It depends on ss32, addseg and dflag.  */
 static void gen_push_v(DisasContext *s, TCGv val)
 {
+
     TCGMemOp a_ot, d_ot = mo_pushpop(s, s->dflag);
     int size = 1 << d_ot;
     TCGv new_esp = cpu_A0;
@@ -5192,7 +5193,8 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         if (reg == 6){
             /* vmxon */
             gen_lea_modrm(env, s, modrm);
-            gen_helper_vtx_vmxon(cpu_env, tcg_const_i64(0xFF0000) );
+            printf("value = %lx\n", (uint64_t)cpu_A0);
+            gen_helper_vtx_vmxon(cpu_env, (cpu_A0) );
         } else if ((mod == 3) || ((modrm & 0x38) != 0x8))
             goto illegal_op;
 #ifdef TARGET_X86_64
@@ -7176,7 +7178,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         /* vtx calls */
         switch (modrm){
             case 0xc1: break;
-            case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
+            //case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
             //case 0xc3: gen_helper_vtx_vmresume(cpu_env); break;
             case 0xc4: gen_helper_vtx_vmxoff(cpu_env); break;
             default: break;

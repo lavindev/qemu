@@ -1,13 +1,14 @@
 #include "cpu.h"
 #include "vtx.h"
-#include "exec/helper-proto.h"
 #include "exec/cpu-all.h"
+#include "exec/helper-proto.h"
+#include "exec/cpu_ldst.h"
 
 #define ISSET(item, flag) (item & flag)
 #define or ||
 #define and &&
 
-#define INCLUDE
+// #define INCLUDE
 
 #define VMCS_CLEAR_ADDRESS 0xFFFFFFFFFFFFFFFF
 
@@ -51,6 +52,7 @@ static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86St
 }
 
 static void clear_address_range_monitoring(CPUX86State * env){
+	/* Address range monitoring not implemented in QEMU */
 	return;
 }
 
@@ -134,21 +136,21 @@ static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
 		return false;
 	}
 
-	if () /* later */
+	if (0) return false; /* later */
 
 	if (check_secondary &&
 		ISSET(secondary_control, VM_EXEC_SEC_ENABLE_VPID)){
 		if (c->vpid === 0x000) return false;
 	}
 
-	if () /* later */
+	if (0) return false; /* later */
 
 	if (check_secondary &&
 		ISSET(secondary_control, VM_EXEC_SEC_UNRESTRICTED_GUEST) && !ISSET(secondary_control, VM_EXEC_SEC_ENABLE_EPT)){
 		return false;
 	}
 
-	if () /* later */
+	if (0) return false; /* later */
 
 
 	if (check_secondary &&
@@ -218,27 +220,269 @@ static bool vmlaunch_check_vmx_controls_exit(CPUX86State * env){
 static bool vmlaunch_check_vmx_controls_entry(CPUX86State * env){
 	return true;
 
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
+
+	//struct vmcs_vmexecution_control_fields * c = &(vmcs->vmcs_vmexecution_control_fields);
+	struct vmcs_vmentry_control_fields * e = &(vmcs->vmcs_vmentry_control_fields);
+
 	if (0 /* check reserved bits */){
 		return false;
 	}
 
+	/* some event injection stuff */
+
+
+	if (e->msr_load_count){
+		if (e->msr_load_addr & 0xFFF || e->msr_load_addr >> TARGET_PHYS_ADDR_SPACE_BITS) 
+			return false;
+		if ((uint64_t)(e->msr_load_addr + (e->msr_load_count * 16) - 1) >> TARGET_PHYS_ADDR_SPACE_BITS){
+			return false;
+		}
+	}
+	/* IA32_VMX_BASIX[48] -- something */
+
+	/* SMM check */
+
+	if (ISSET(e->vmentry_controls, VM_ENTRY_SMM_ENTRY) && ISSET(e->vmentry_controls, VM_ENTRY_DEACTIVATE_DUAL_MON))
+		return false;
+
+
+	return true;
 	
-}
-
-static bool vmlaunch_check_vmx_controls(CPUX86State * env){
-
-	return vmlaunch_check_vmx_controls_execution(env) &&
-		   vmlaunch_check_vmx_controls_exit(env) &&
-		   vmlaunch_check_vmx_controls_entry(env);
-
 }
 
 static bool vmlaunch_check_host_state(CPUX86State * env){
 	return true;
+
+	/* a bunch of reserved checks -- not important for now */
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
+
+	struct vmcs_host_state_area * h = &(vmcs->vmcs_host_state_area);
+	struct vmcs_vmexit_control_fields * ex = &(vmcs->vmcs_vmexit_control_fields);	
+	struct vmcs_vmentry_control_fields * en = &(vmcs->vmcs_vmentry_control_fields);	
+
+	if (h->cs_selector & 0x7) return false;
+	if (h->ss_selector & 0x7) return false;
+	if (h->ds_selector & 0x7) return false;
+	if (h->es_selector & 0x7) return false;
+	if (h->fs_selector & 0x7) return false;
+	if (h->gs_selector & 0x7) return false;
+	if (h->tr_selector & 0x7) return false;
+
+	if (h->cs_selector == 0x0000 || h->tr_selector == 0x0000)
+		return false;
+
+	if (!ISSET(ex->vmexit_controls, VM_EXIT_HOST_ADDR_SPACE_SIZE) && h->ss_selector == 0x0000)
+		return false;
+
+	/* 64 bit stuff in 26.2.3 */
+
+	/* 64 bit stuff in 26.2.4 */
+
+	if (ISSET(en->vmentry_controls, VM_ENTRY_GUEST) || ISSET(ex->vmexit_controls, VM_EXIT_HOST_ADDR_SPACE_SIZE))
+		return false;
+
+	return true;
+
 }
 
+/** 26.2 */
+static bool vmlaunch_check_vmx_controls(CPUX86State * env){
+
+	return vmlaunch_check_vmx_controls_execution(env) &&
+		   vmlaunch_check_vmx_controls_exit(env) &&
+		   vmlaunch_check_vmx_controls_entry(env) &&
+		   vmlaunch_check_host_state(env);
+
+}
+
+/** 26.3 */
 static bool vmlaunch_check_guest_state(CPUX86State * env){
 	return true;
+
+}
+
+static void vmlaunch_load_guest_state(CPUX86State * env){
+
+	int i;
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
+	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
+	struct vmcs_vmentry_control_fields * cf = &(vmcs->vmcs_vmentry_control_fields);
+
+	target_ulong reserved_mask;
+
+	/* Loading Guest Control Registers, Debug Registers, and MSRs */
+	{
+		/* load CR0 */
+		reserved_mask = 0x7FF8FFD0;
+		env->cr[0] &= ~reserved_mask;
+		env->cr[0] |= (g->cr0 & ~reserved_mask);
+
+		/* load cr3 & 4 */
+		env->cr[3] = g->cr3;
+		env->cr[4] = g->cr4;
+
+		if (ISSET(cf->vmentry_controls, VM_ENTRY_LOAD_DEBUG_CONTROLS)){
+				
+			/* load dr7 with set bits */
+			env->dr[7] = g->dr7;
+			env->dr[7] |= 0x400;
+			env->dr[7] &= ~(0xD000);
+
+			/* load MSR */
+			env->msr_ia32_debugctl = g->msr_ia32_debugctl;
+		}
+
+		/* load MSR */
+		env->sysenter_cs = g->msr_sysenter_cs;
+		env->sysenter_esp = g->msr_ia32_sysenter_esp;
+		env->sysenter_eip = g->msr_ia32_sysenter_eip;
+
+		// 64-bit stuff here TODO
+
+		if (ISSET(cf->vmentry_controls, VM_ENTRY_LOAD_PERF_GLOB)){
+			env->msr_global_ctrl = g->msr_ia32_perf_gloval_ctrl;
+		}
+
+		if (ISSET(cf->vmentry_controls, VM_ENTRY_LOAD_PAT)){
+			env->pat = g->msr_ia32_pat;
+		}
+
+		if (ISSET(cf->vmentry_controls, VM_ENTRY_LOAD_EFER)){
+			env->efer = g->msr_ia32_efer;
+		}
+	}
+
+	/* Loading Guest Segment Registers and Descriptor-Table Registers */
+	{
+		// exceptions in 32 bit only
+		if (g->cs.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
+		if (g->ss.access_rights.unusable) raise_exception(env, EXCP0C_STACK);
+		if (g->ds.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
+		if (g->es.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
+		if (g->fs.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
+		if (g->gs.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
+
+		// all modes (64, 32)
+		if (g->ldtr.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
+
+		#define LOAD_ACCESS_RIGHTS(flags, access_rights) do {	\
+			uint32_t newflags = 0;								\
+			newflags |= access_rights.segment_type << 8;		\
+			newflags |= access_rights.descriptor_type << 12;	\
+			newflags |= access_rights.dpl << DESC_DPL_SHIFT;	\
+			newflags |= access_rights.segment_present << 15;	\
+			newflags |= access_rights.avl << 20;				\
+			newflags |= access_rights.db << DESC_B_SHIFT;		\
+			newflags |= access_rights.granularity << 23;		\
+			flags = newflags;									\
+		} while(0)												
+		
+		// load tr
+		env->tr.selector = g->tr.selector;
+		env->tr.base = g->tr.base_addr;
+		env->tr.limit = g->tr.segment_limit;
+		LOAD_ACCESS_RIGHTS(env->tr.flags, g->tr.access_rights);
+
+		// load cs -- NOTE: change to use function in cpu.h
+		env->segs[R_CS].selector = g->cs.selector;
+		env->segs[R_CS].base = g->cs.base_addr;
+		env->segs[R_CS].limit = g->cs.segment_limit;
+		if (g->cs.access_rights.unusable){
+			reserved_mask = DESC_G_MASK | DESC_B_MASK | DESC_L_MASK;
+			env->segs[R_CS].flags &= ~reserved_mask;
+			// NOTE: 64 bit needs L flag below
+			env->segs[R_CS].flags |= (access_rights.db << DESC_B_SHIFT) | (access_rights.granularity << 23);
+		} else {
+			LOAD_ACCESS_RIGHTS(env->segs[R_CS].flags, g->cs.access_rights);
+		}
+
+		// SS, DS, ES, FS, GS, and LDTR
+		env->segs[R_SS].selector = g->ss.selector;
+		if (g->ss.access_rights.unusable){
+
+			env->segs[R_SS].base &= ~(0x0000000F);
+			env->segs[R_SS].flags &= ~(DESC_DPL_MASK);
+			env->segs[R_SS].flags |= g->ss.access_rights.dpl << DESC_DPL_SHIFT;
+			env->segs[R_SS].flags |= (DESC_B_MASK);
+		} else {
+			env->segs[R_SS].base = g->ss.base_addr;
+			env->segs[R_SS].limit = g->ss.segment_limit;
+			LOAD_ACCESS_RIGHTS(env->segs[R_SS].flags, g->ss.access_rights);
+		}
+
+		env->segs[R_DS].selector = g->ds.selector;
+		if (!g->ds.access_rights.unusable){
+			env->segs[R_DS].base = g->ds.base_addr;
+			env->segs[R_DS].limit = g->ds.segment_limit;
+			LOAD_ACCESS_RIGHTS(env->segs[R_DS].flags, g->ds.access_rights);
+		}
+
+		env->segs[R_ES].selector = g->es.selector;
+		if (!g->es.access_rights.unusable){
+			env->segs[R_ES].base = g->es.base_addr;
+			env->segs[R_ES].limit = g->es.segment_limit;
+			LOAD_ACCESS_RIGHTS(env->segs[R_ES].flags, g->es.access_rights);
+		}
+
+		env->segs[R_FS].selector = g->fs.selector;
+		env->segs[R_FS].base = g->fs.base_addr;
+		if (!g->fs.access_rights.unusable){
+			env->segs[R_FS].limit = g->fs.segment_limit;
+			LOAD_ACCESS_RIGHTS(env->segs[R_FS].flags, g->fs.access_rights);
+			// some 64 bit stuff
+		}
+
+		env->segs[R_GS].selector = g->gs.selector;
+		env->segs[R_GS].base = g->gs.base_addr;
+		if (!g->gs.access_rights.unusable){
+			env->segs[R_GS].limit = g->gs.segment_limit;
+			LOAD_ACCESS_RIGHTS(env->segs[R_GS].flags, g->gs.access_rights);
+			// some 64 bit stuff
+		}
+
+		env->ldt.selector = g->ldtr.selector;
+		if (!g->ldtr.access_rights.unusable){
+			env->ldt.base = g->ldtr.base_addr;
+			env->ldt.limit = g->ldtr.segment_limit;
+			LOAD_ACCESS_RIGHTS(env->ldt.flags, g->ldtr.access_rights);
+		}
+
+		// GDT, IDT
+		env->gdt.base = g->gdtr.base_addr;
+		env->gdt.limit = g->gdtr.segment_limit;
+
+		env->idt.base = g->idtr.base_addr;
+		env->idt.limit = g->idtr.segment_limit;
+	} 
+
+	/* Loading Guest RIP, RSP, and RFLAGS */
+	{
+		// watch out for 64 bit
+		env->regs[R_ESP] = g->esp;
+		env->eip = g->eip;
+		env->eflags = g->eflags;
+	}
+
+	/* Loading Page-Directory-Pointer-Table Entries */
+	{
+		/* EPT stuff, not implemented */
+	}
+
+	/* Updating Non-Register State */
+	{
+		/* EPT stuff, not implemented */
+
+		/* virtual interrupts, no idea what to do here */
+	}
+
+	clear_address_range_monitoring(env);
+
+}
+
+static void vmlaunch_load_msrs(CPUX86State * env){
+	
 }
 
 
@@ -249,26 +493,27 @@ static bool vmlaunch_check_guest_state(CPUX86State * env){
  *		  Dereference vmxon_region_ptr to get physical addr of vmxon_region. 
  * 		  Dereference this physical addr to get rev (start of vmxon_region)
  */
-void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_ptr) {
+void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 
 	LOG_ENTRY
 
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+
 	int cpl = env->segs[R_CS].selector & 0x3;
-	uint32_t rev_buf=0;
+	target_ulong addr;
 	int32_t rev;
 
 	/* CHECK: DESC_L_MASK 64 bit only? */
-	if (!vmxon_region_ptr or 
-		!ISSET(env->cr[0], CR0_PE_MASK) or 
-		!ISSET(env->cr[4], CR4_VMXE_MASK) or 
-		ISSET(env->eflags, VM_MASK) or  
-		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+	if (!vmxon_region_ptr || 
+		!ISSET(env->cr[0], CR0_PE_MASK) || 
+		!ISSET(env->cr[4], CR4_VMXE_MASK) || 
+		ISSET(env->eflags, VM_MASK) ||  
+		(ISSET(env->efer, MSR_EFER_LMA) && !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
 			LOG("ILLEGAL OP EXCEPTION")
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_DISABLED){
-		
 
-		if (cpl > 0 or
+		if (cpl > 0 ||
 			/* cr0,4 values not supported */
 			!ISSET(env->msr_ia32_feature_control, MSR_IA32_FEATURE_CONTROL_LOCK)
 			/* smx */
@@ -279,15 +524,16 @@ void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_ptr) {
 			raise_exception(env, EXCP0D_GPF);
 		} else {
 			/* check 4KB align or bits beyond phys range*/
-			if ((vmxon_region_ptr & 0xFFF) or (vmxon_region_ptr >> TARGET_PHYS_ADDR_SPACE_BITS)){
+			if ((vmxon_region_ptr & 0xFFF) || (sizeof(target_ulong)*8 > TARGET_PHYS_ADDR_SPACE_BITS && vmxon_region_ptr >> TARGET_PHYS_ADDR_SPACE_BITS)){
 				LOG("Not 4KB aligned, or bits set beyond range")
 				vm_exception(FAIL_INVALID, 0, env);
 			} else {
-				// deref vmxon_region_ptr -> buf
-				//cpu_physical_memory_rw(vmxon_region_ptr, (uint8_t *) &rev_buf, 4, 0);
-				rev =  (int32_t) REVERSE_ENDIAN_32(rev_buf); // MARK
+				// deref vmxon_region_ptr -> addr
+				cpu_memory_rw_debug(cs, vmxon_region_ptr, (uint8_t *)&addr, sizeof(target_ulong), 0);
+				printf("addr = %x\n", addr);
+				rev =  (int32_t) x86_ldl_phys(cs, addr); // MARK
 				/* TODO: cleanup, use structs for msr */
-				if ((rev & 0x7FFFFFFF) != (env->msr_ia32_vmx_basic & 0x7FFFFFFF) or
+				if ((rev & 0x7FFFFFFF) != (env->msr_ia32_vmx_basic & 0x7FFFFFFF) ||
 					rev < 0 /* rev[31] = 1 */){
 					LOG("rev[30:0] != MSR or rev[31] == 1")
 					vm_exception(FAIL_INVALID, 0, env);
@@ -296,7 +542,7 @@ void helper_vtx_vmxon(CPUX86State *env, uint64_t vmxon_region_ptr) {
 					env->vmx_operation = VMX_ROOT_OPERATION;
 					/* TODO: block INIT signals */
 					/* TODO: block A20M */
-					env->a20_mask = -1; // no change -- breaks everything if 1/0
+					//env->a20_mask = -1; // no change -- breaks everything if 1/0
 					clear_address_range_monitoring(env);
 					vm_exception(SUCCEED, 0, env);
 					LOG("<1> In VMX Root Operation")
@@ -326,10 +572,10 @@ void helper_vtx_vmxoff(CPUX86State * env){
 	int cpl = env->segs[R_CS].selector & 0x3;
 
 	/* again, check DESC_L_MASK 64 bit only ? */
-	if (env->vmx_operation == VMX_DISABLED or
-		!ISSET(env->cr[0], CR0_PE_MASK) or
-		ISSET(env->eflags, VM_MASK) or 
-		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))) {
+	if (env->vmx_operation == VMX_DISABLED ||
+		!ISSET(env->cr[0], CR0_PE_MASK) ||
+		ISSET(env->eflags, VM_MASK) || 
+		(ISSET(env->efer, MSR_EFER_LMA) && !ISSET(env->segs[R_CS].flags, DESC_L_MASK))) {
 			LOG("INVALID OPCODE EXCEPTION")
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
@@ -354,7 +600,7 @@ void helper_vtx_vmxoff(CPUX86State * env){
 	LOG_EXIT
 }
 
-#ifndef INCLUDE
+#ifdef INCLUDE
 void helper_vtx_vmptrld(CPUX86State * env, uint64_t vmcs_addr_phys){
 
 	int cpl = env->segs[R_CS].selector & 0x3;
@@ -479,7 +725,6 @@ void helper_vtx_vmfunc(CPUX86State * env){
 
 }
 #endif
-
 void helper_vtx_vmlaunch(CPUX86State * env){
 	
 	LOG_ENTRY
@@ -549,8 +794,8 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 	LOG_EXIT
 
 }
-#ifndef INCLUDE
 
+#ifdef INCLUDE
 void helper_vtx_vmresume(CPUX86State * env){
 		
 	int cpl = env->segs[R_CS].selector & 0x3;
