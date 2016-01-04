@@ -343,7 +343,7 @@ typedef struct QEMU_PACKED vtx_vmcs {
 	struct vmcs_host_state_area vmcs_host_state_area;
 	struct vmcs_vmexecution_control_fields vmcs_vmexecution_control_fields;
 	
-	uint32_t vmcs_vmexit_control_fields;
+	struct vmcs_vmexit_control_fields vmcs_vmexit_control_fields;
 	struct vmcs_vmentry_control_fields vmcs_vmentry_control_fields;
 	struct vmcs_vmexit_information_fields vmcs_vmexit_information_fields;
 

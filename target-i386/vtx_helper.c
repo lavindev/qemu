@@ -82,19 +82,19 @@ static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
 	if (c->cr3_target_count > 4) return false;
 
 	if (ISSET(primary_control, VM_EXEC_PRIM_USE_IO_BITMAPS)){
-		if ( (io_bitmap_addr_A & 0xFFF) || (io_bitmap_addr_A >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (io_bitmap_addr_B & 0xFFF) || (io_bitmap_addr_B >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->io_bitmap_addr_A & 0xFFF) || (c->io_bitmap_addr_A >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->io_bitmap_addr_B & 0xFFF) || (c->io_bitmap_addr_B >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
 	}
 
 	if (ISSET(primary_control, VM_EXEC_PRIM_USE_MSR_BITMAPS)){
-		if ( (read_bitmap_low_msr & 0xFFF) || (read_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (read_bitmap_high_msr & 0xFFF) || (read_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (write_bitmap_low_msr & 0xFFF) || (write_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (write_bitmap_high_msr & 0xFFF) || (write_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->read_bitmap_low_msr & 0xFFF) || (c->read_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->read_bitmap_high_msr & 0xFFF) || (c->read_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->write_bitmap_low_msr & 0xFFF) || (c->write_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->write_bitmap_high_msr & 0xFFF) || (c->write_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
 	}
 
 	if (ISSET(primary_control, VM_EXEC_PRIM_USE_TPR_SHADOW)){
-		if ( (virt_apic_address & 0xFFF) || (virt_apic_address >> TARGET_PHYS_ADDR_SPACE_BITS) ) return false;
+		if ( (c->virt_apic_address & 0xFFF) || (c->virt_apic_address >> TARGET_PHYS_ADDR_SPACE_BITS) ) return false;
 		/* TODO: clear vtpr */
 	}
 
@@ -140,7 +140,7 @@ static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
 
 	if (check_secondary &&
 		ISSET(secondary_control, VM_EXEC_SEC_ENABLE_VPID)){
-		if (c->vpid === 0x000) return false;
+		if (c->vpid == 0x000) return false;
 	}
 
 	if (0) return false; /* later */
@@ -155,15 +155,15 @@ static bool vmlaunch_check_vmx_controls_execution(CPUX86State * env){
 
 	if (check_secondary &&
 		ISSET(secondary_control, VM_EXEC_SEC_VMCS_SHADOWING)){
-		if ( (read_bitmap_low_msr & 0xFFF) || (read_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (read_bitmap_high_msr & 0xFFF) || (read_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (write_bitmap_low_msr & 0xFFF) || (write_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
-		if ( (write_bitmap_high_msr & 0xFFF) || (write_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->read_bitmap_low_msr & 0xFFF) || (c->read_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->read_bitmap_high_msr & 0xFFF) || (c->read_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->write_bitmap_low_msr & 0xFFF) || (c->write_bitmap_low_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
+		if ( (c->write_bitmap_high_msr & 0xFFF) || (c->write_bitmap_high_msr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;
 	}
 
 	if (check_secondary &&
 		ISSET(secondary_control, VM_EXEC_SEC_EPT_VIOLATION_VE)){
-		if ( (virt_exception_info_addr & 0xFFF) || (virt_exception_info_addr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;	
+		if ( (c->virt_exception_info_addr & 0xFFF) || (c->virt_exception_info_addr >> TARGET_PHYS_ADDR_SPACE_BITS)) return false;	
 	}
 
 	return true;
@@ -305,7 +305,6 @@ static bool vmlaunch_check_guest_state(CPUX86State * env){
 
 static void vmlaunch_load_guest_state(CPUX86State * env){
 
-	int i;
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) env->vmcs;
 	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
 	struct vmcs_vmentry_control_fields * cf = &(vmcs->vmcs_vmentry_control_fields);
@@ -393,7 +392,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 			reserved_mask = DESC_G_MASK | DESC_B_MASK | DESC_L_MASK;
 			env->segs[R_CS].flags &= ~reserved_mask;
 			// NOTE: 64 bit needs L flag below
-			env->segs[R_CS].flags |= (access_rights.db << DESC_B_SHIFT) | (access_rights.granularity << 23);
+			env->segs[R_CS].flags |= (g->cs.access_rights.db << DESC_B_SHIFT) | (g->cs.access_rights.granularity << 23);
 		} else {
 			LOAD_ACCESS_RIGHTS(env->segs[R_CS].flags, g->cs.access_rights);
 		}
@@ -451,10 +450,10 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 
 		// GDT, IDT
 		env->gdt.base = g->gdtr.base_addr;
-		env->gdt.limit = g->gdtr.segment_limit;
+		env->gdt.limit = g->gdtr.limit;
 
 		env->idt.base = g->idtr.base_addr;
-		env->idt.limit = g->idtr.segment_limit;
+		env->idt.limit = g->idtr.limit;
 	} 
 
 	/* Loading Guest RIP, RSP, and RFLAGS */
@@ -530,8 +529,7 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 			} else {
 				// deref vmxon_region_ptr -> addr
 				cpu_memory_rw_debug(cs, vmxon_region_ptr, (uint8_t *)&addr, sizeof(target_ulong), 0);
-				printf("addr = %x\n", addr);
-				rev =  (int32_t) x86_ldl_phys(cs, addr); // MARK
+				rev =  (int32_t) x86_ldl_phys(cs, addr);
 				/* TODO: cleanup, use structs for msr */
 				if ((rev & 0x7FFFFFFF) != (env->msr_ia32_vmx_basic & 0x7FFFFFFF) ||
 					rev < 0 /* rev[31] = 1 */){

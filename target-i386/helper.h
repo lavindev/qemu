@@ -206,7 +206,7 @@ DEF_HELPER_3(movq, void, env, ptr, ptr)
 
 DEF_HELPER_2(vtx_vmxon, void, env, tl)
 DEF_HELPER_1(vtx_vmxoff, void, env)
-// DEF_HELPER_1(vtx_vmlaunch, void, env)
+DEF_HELPER_1(vtx_vmlaunch, void, env)
 
 
 #define SHIFT 0
