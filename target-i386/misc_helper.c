@@ -395,6 +395,9 @@ void helper_rdmsr(CPUX86State *env)
     case MSR_IA32_APICBASE:
         val = cpu_get_apic_base(x86_env_get_cpu(env)->apic_state);
         break;
+    case MSR_IA32_FEATURE_CONTROL:
+        val = env->msr_ia32_feature_control;
+        break;
     case MSR_EFER:
         val = env->efer;
         break;

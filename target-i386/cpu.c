@@ -775,7 +775,7 @@ static X86CPUDefinition builtin_x86_defs[] = {
         .features[FEAT_1_EDX] =
             PPRO_FEATURES,
         .features[FEAT_1_ECX] =
-            CPUID_EXT_SSE3 | CPUID_EXT_POPCNT,
+            CPUID_EXT_SSE3 | CPUID_EXT_POPCNT | CPUID_EXT_VMX,
         .xlevel = 0x80000004,
     },
     {
@@ -2675,7 +2675,7 @@ static void x86_cpu_reset(CPUState *s)
 
     env->pat = 0x0007040600070406ULL;
     env->msr_ia32_misc_enable = MSR_IA32_MISC_ENABLE_DEFAULT;
-    env->msr_ia32_feature_control = 0x1; // LAVIN: hack - lock bit is set now
+    env->msr_ia32_feature_control = 0x5; // LAVIN: hack - lock bit is set now
     env->vmx_operation = VMX_DISABLED;
     env->msr_ia32_vmx_basic = 0x0;
 

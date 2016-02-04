@@ -5176,6 +5176,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             tcg_temp_free(a0);
         }
         break;
+
     case 0x1c7: /* cmpxchg8b */
 
         /* **LAVIN**:
@@ -5193,8 +5194,12 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         if (reg == 6){
             /* vmxon */
             gen_lea_modrm(env, s, modrm);
-            printf("value = %lx\n", (uint64_t)cpu_A0);
-            gen_helper_vtx_vmxon(cpu_env, (cpu_A0) );
+            if (prefixes & PREFIX_REPZ)
+                gen_helper_vtx_vmxon(cpu_env, (cpu_A0) );
+            else if (prefixes & PREFIX_DATA)
+                gen_helper_vtx_vmclear(cpu_env, cpu_A0);
+            else
+                gen_helper_vtx_vmptrld(cpu_env, cpu_A0);
         } else if ((mod == 3) || ((modrm & 0x38) != 0x8))
             goto illegal_op;
 #ifdef TARGET_X86_64
@@ -7093,6 +7098,9 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         break;
 #endif
     case 0x1a2: /* cpuid */
+
+        gen_helper_vtx_vmexit(cpu_env);
+
         gen_update_cc_op(s);
         gen_jmp_im(pc_start - s->cs_base);
         gen_helper_cpuid(cpu_env);
@@ -7178,7 +7186,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         /* vtx calls */
         switch (modrm){
             case 0xc1: break;
-            //case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
+            case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
             //case 0xc3: gen_helper_vtx_vmresume(cpu_env); break;
             case 0xc4: gen_helper_vtx_vmxoff(cpu_env); break;
             default: break;
@@ -7791,12 +7799,24 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
     case 0x110 ... 0x117:
     case 0x128 ... 0x12f:
     case 0x138 ... 0x13a:
-    case 0x150 ... 0x179:
+    case 0x150 ... 0x177:
     case 0x17c ... 0x17f:
     case 0x1c2:
     case 0x1c4 ... 0x1c6:
     case 0x1d0 ... 0x1fe:
         gen_sse(env, s, b, pc_start, rex_r);
+        break;
+
+    /* VMX only */
+    case 0x178: // vmread    
+    case 0x179: // vmwrite 
+
+        ot = mo_b_d(b, dflag);
+        modrm = cpu_ldub_code(env, s->pc++);
+        reg = ((modrm >> 3) & 7) | rex_r;
+
+        gen_ldst_modrm(env, s, modrm, ot, OR_TMP0, 0);
+        gen_helper_vtx_vmwrite(cpu_env, cpu_regs[reg], cpu_T[0]);
         break;
     default:
         goto illegal_op;

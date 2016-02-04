@@ -207,6 +207,10 @@ DEF_HELPER_3(movq, void, env, ptr, ptr)
 DEF_HELPER_2(vtx_vmxon, void, env, tl)
 DEF_HELPER_1(vtx_vmxoff, void, env)
 DEF_HELPER_1(vtx_vmlaunch, void, env)
+DEF_HELPER_1(vtx_vmexit, void, env)
+DEF_HELPER_2(vtx_vmptrld, void, env, tl)
+DEF_HELPER_2(vtx_vmclear, void, env, tl)
+DEF_HELPER_3(vtx_vmwrite, void, env, tl, tl)
 
 
 #define SHIFT 0

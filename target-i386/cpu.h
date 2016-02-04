@@ -990,7 +990,9 @@ typedef struct CPUX86State {
 
     TPRAccess tpr_access_type;
 
-    void * vmcs; // cast when needed to vtx_vmcs_t
+    void * processor_vmcs;
+    target_ulong vmcs_ptr_register;
+    target_ulong vmxon_ptr_register;
     uint32_t vmx_operation;
     #define VMX_DISABLED 0
     #define VMX_ROOT_OPERATION 1

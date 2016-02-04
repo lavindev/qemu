@@ -58,7 +58,7 @@ struct QEMU_PACKED vmcs_guest_state_area {
 	uint32_t msr_sysenter_cs;
 	target_ulong msr_ia32_sysenter_esp;
 	target_ulong msr_ia32_sysenter_eip;
-	uint64_t msr_ia32_perf_gloval_ctrl;
+	uint64_t msr_ia32_perf_global_ctrl;
 	uint64_t msr_ia32_pat;
 	uint64_t msr_ia32_efer;
 
@@ -124,7 +124,7 @@ struct QEMU_PACKED vmcs_host_state_area {
 	uint32_t msr_sysenter_cs;
 	target_ulong msr_ia32_sysenter_esp;
 	target_ulong msr_ia32_sysenter_eip;
-	uint64_t msr_ia32_perf_gloval_ctrl;
+	uint64_t msr_ia32_perf_global_ctrl;
 	uint64_t msr_ia32_pat;
 	uint64_t msr_ia32_efer;
 };
@@ -305,7 +305,7 @@ struct QEMU_PACKED vmcs_vmexit_information_fields {
 	target_ulong exit_qualification;
 	target_ulong guest_linear_addr;
 	uint64_t guest_phys_addr;
-		struct QEMU_PACKED{
+	struct QEMU_PACKED {
 		uint8_t vector;
 		uint32_t type:3;
 		uint32_t error_code_valid:1;
@@ -361,6 +361,8 @@ typedef enum vm_exception {
 	FAIL_INVALID,
 	FAIL_VALID
 } vm_exception_t;
+
+
 
 
 #endif
