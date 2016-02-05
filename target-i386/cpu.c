@@ -2677,7 +2677,20 @@ static void x86_cpu_reset(CPUState *s)
     env->msr_ia32_misc_enable = MSR_IA32_MISC_ENABLE_DEFAULT;
     env->msr_ia32_feature_control = 0x5; // LAVIN: hack - lock bit is set now
     env->vmx_operation = VMX_DISABLED;
-    env->msr_ia32_vmx_basic = 0x0;
+    env->msr_ia32_vmx_basic = MSR_IA32_VMX_BASIC_DEFAULT;
+    env->msr_ia32_vmx_pinbased_ctls = MSR_IA32_VMX_PINBASED_CTLS_DEFAULT;
+    env->msr_ia32_vmx_procbased_ctls = MSR_IA32_VMX_PROCBASED_CTLS_DEFAULT;
+    env->msr_ia32_vmx_exit_ctls = MSR_IA32_VMX_EXIT_CTLS_DEFAULT;
+    env->msr_ia32_vmx_entry_ctls = MSR_IA32_VMX_ENTRY_CTLS_DEFAULT;
+    env->msr_ia32_vmx_misc = MSR_IA32_VMX_MISC_DEFAULT;
+    env->msr_ia32_vmx_cr0_fixed0 = MSR_IA32_VMX_CR0_FIXED0_DEFAULT;
+    env->msr_ia32_vmx_cr0_fixed1 = MSR_IA32_VMX_CR0_FIXED1_DEFAULT;
+    env->msr_ia32_vmx_cr4_fixed0 = MSR_IA32_VMX_CR4_FIXED0_DEFAULT;
+    env->msr_ia32_vmx_cr4_fixed1 = MSR_IA32_VMX_CR4_FIXED1_DEFAULT;
+    env->msr_ia32_vmx_enum = MSR_IA32_VMX_ENUM_DEFAULT;
+    env->msr_ia32_vmx_procbased_ctls2 = MSR_IA32_VMX_PROCBASED_CTLS2_DEFAULT;
+    env->msr_ia32_vmx_ept_vpid_cap = MSR_IA32_VMX_EPT_VPID_CAP_DEFAULT;
+    env->msr_ia32_vmx_vmfunc = MSR_IA32_VMX_VMFUNC_DEFAULT;
 
     memset(env->dr, 0, sizeof(env->dr));
     env->dr[6] = DR6_FIXED_1;

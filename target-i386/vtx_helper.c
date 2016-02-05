@@ -527,7 +527,6 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 
 	LOG_ENTRY
 
-	printf("%x\n", vmxon_region_ptr);
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
 

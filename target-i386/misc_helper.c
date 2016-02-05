@@ -508,6 +508,48 @@ void helper_rdmsr(CPUX86State *env)
     case MSR_IA32_MISC_ENABLE:
         val = env->msr_ia32_misc_enable;
         break;
+    case MSR_IA32_VMX_BASIC:
+        val = env->msr_ia32_vmx_basic;
+        break;
+    case MSR_IA32_VMX_PINBASED_CTLS:
+        val = env->msr_ia32_vmx_pinbased_ctls;
+        break;
+    case MSR_IA32_VMX_PROCBASED_CTLS:
+        val = env->msr_ia32_vmx_procbased_ctls;
+        break;
+    case MSR_IA32_VMX_EXIT_CTLS:
+        val = env->msr_ia32_vmx_exit_ctls;
+        break;
+    case MSR_IA32_VMX_ENTRY_CTLS:
+        val = env->msr_ia32_vmx_entry_ctls;
+        break;
+    case MSR_IA32_VMX_MISC:
+        val = env->msr_ia32_vmx_misc;
+        break;
+    case MSR_IA32_VMX_CR0_FIXED0:
+        val = env->msr_ia32_vmx_cr0_fixed0;
+        break;
+    case MSR_IA32_VMX_CR0_FIXED1:
+        val = env->msr_ia32_vmx_cr0_fixed1;
+        break;
+    case MSR_IA32_VMX_CR4_FIXED0:
+        val = env->msr_ia32_vmx_cr4_fixed0;
+        break;
+    case MSR_IA32_VMX_CR4_FIXED1:
+        val = env->msr_ia32_vmx_cr4_fixed1;
+        break;
+    case MSR_IA32_VMX_ENUM:
+        val = env->msr_ia32_vmx_enum;
+        break;
+    case MSR_IA32_VMX_PROCBASED_CTLS2:
+        val = env->msr_ia32_vmx_procbased_ctls2;
+        break;
+    case MSR_IA32_VMX_EPT_VPID_CAP:
+        val = env->msr_ia32_vmx_ept_vpid_cap;
+        break;
+    case MSR_IA32_VMX_VMFUNC:
+        val = env->msr_ia32_vmx_vmfunc;
+        break;
     default:
         if ((uint32_t)env->regs[R_ECX] >= MSR_MC0_CTL
             && (uint32_t)env->regs[R_ECX] < MSR_MC0_CTL +

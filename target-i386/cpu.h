@@ -330,20 +330,21 @@
 #define MSR_IA32_VMX_VMFUNC             0x491
 
 /* VMX MSRs default values */
-#define MSR_IA32_VMX_BASIC_DEFAULT              (((6ULL << 50)) | ((4096ULL) << 32) | 0x00000000)
-#define MSR_IA32_VMX_PINBASED_CTLS_DEFAULT      0x481
-#define MSR_IA32_VMX_PROCBASED_CTLS_DEFAULT     0x482
-#define MSR_IA32_VMX_EXIT_CTLS_DEFAULT          0x483
-#define MSR_IA32_VMX_ENTRY_CTLS_DEFAULT         0x484
-#define MSR_IA32_VMX_MISC_DEFAULT               0x485
-#define MSR_IA32_VMX_CR0_FIXED0_DEFAULT         0x486
-#define MSR_IA32_VMX_CR0_FIXED1_DEFAULT         0x487
-#define MSR_IA32_VMX_CR4_FIXED0_DEFAULT         0x488
-#define MSR_IA32_VMX_CR4_FIXED1_DEFAULT         0x489
-#define MSR_IA32_VMX_ENUM_DEFAULT               0x48A
-#define MSR_IA32_VMX_PROCBASED_CTLS2_DEFAULT    0x48B
-#define MSR_IA32_VMX_EPT_VPID_CAP_DEFAULT       0x48C
-#define MSR_IA32_VMX_VMFUNC_DEFAULT             0x491
+#define MSR_IA32_VMX_BASIC_DEFAULT              (((6ULL << 50)) | ((4096ULL) << 32) | 0x00000012)
+/* values obtained from Core i7-4790 CPU @ 3.60 GHz */
+#define MSR_IA32_VMX_PINBASED_CTLS_DEFAULT      0x7f00000016ULL
+#define MSR_IA32_VMX_PROCBASED_CTLS_DEFAULT     0xfff9fffe0401e172ULL
+#define MSR_IA32_VMX_EXIT_CTLS_DEFAULT          0x7fffff00036dffULL
+#define MSR_IA32_VMX_ENTRY_CTLS_DEFAULT         0xffff000011ffULL
+#define MSR_IA32_VMX_MISC_DEFAULT               0x300481e5ULL
+#define MSR_IA32_VMX_CR0_FIXED0_DEFAULT         0x80000021ULL
+#define MSR_IA32_VMX_CR0_FIXED1_DEFAULT         0xffffffffULL
+#define MSR_IA32_VMX_CR4_FIXED0_DEFAULT         0x2000ULL
+#define MSR_IA32_VMX_CR4_FIXED1_DEFAULT         0x1767ffULL
+#define MSR_IA32_VMX_ENUM_DEFAULT               0x2aULL
+#define MSR_IA32_VMX_PROCBASED_CTLS2_DEFAULT    0x7cff00000000ULL
+#define MSR_IA32_VMX_EPT_VPID_CAP_DEFAULT       0xf0106334141ULL
+#define MSR_IA32_VMX_VMFUNC_DEFAULT             0x1ULL
 
 #define MSR_P6_PERFCTR0                 0xc1
 
@@ -1033,6 +1034,19 @@ typedef struct CPUX86State {
 
     // added MSRs for VT-x
     uint64_t msr_ia32_debugctl;
+    uint64_t msr_ia32_vmx_pinbased_ctls;
+    uint64_t msr_ia32_vmx_procbased_ctls;
+    uint64_t msr_ia32_vmx_exit_ctls;
+    uint64_t msr_ia32_vmx_entry_ctls;
+    uint64_t msr_ia32_vmx_misc;
+    uint64_t msr_ia32_vmx_cr0_fixed0;
+    uint64_t msr_ia32_vmx_cr0_fixed1;
+    uint64_t msr_ia32_vmx_cr4_fixed0;
+    uint64_t msr_ia32_vmx_cr4_fixed1;
+    uint64_t msr_ia32_vmx_enum;
+    uint64_t msr_ia32_vmx_procbased_ctls2;
+    uint64_t msr_ia32_vmx_ept_vpid_cap;
+    uint64_t msr_ia32_vmx_vmfunc;
     
 
 
