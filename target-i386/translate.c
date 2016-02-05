@@ -2982,37 +2982,6 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     else
         b1 = 0;
 
-    // vmx additions
-    modrm = cpu_ldub_code(env, s->pc++);
-    reg = ((modrm >> 3) & 7);
-
-
-    if ((b | (b1<<8)) == 0x138 && (modrm == 0x80 || modrm == 0x81)){
-
-        b = modrm;
-        rm = modrm & 7;
-        reg = ((modrm >> 3) & 7) | rex_r;
-        mod = (modrm >> 6) & 3;
-
-        if (b1) {
-            op1_offset = offsetof(CPUX86State,xmm_regs[reg]);
-            if (mod != 3) {
-                gen_lea_modrm(env, s, modrm);
-                switch (b) {
-                case 0x80: 
-                    gen_helper_vtx_invept(cpu_env, cpu_regs[reg], tcg_const_i64(0));
-                    break;
-                case 0x81:
-                    gen_helper_vtx_invvpid(cpu_env, cpu_regs[reg], tcg_const_i64(0));
-                    break;
-                }
-            }
-        }
-
-        return;
-    
-    }
-
     sse_fn_epp = sse_op_table1[b][b1];
     if (!sse_fn_epp) {
         goto illegal_op;
@@ -3059,6 +3028,8 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
         gen_helper_enter_mmx(cpu_env);
     }
 
+    modrm = cpu_ldub_code(env, s->pc++);
+    reg = ((modrm >> 3) & 7);
     
     if (is_xmm)
         reg |= rex_r;

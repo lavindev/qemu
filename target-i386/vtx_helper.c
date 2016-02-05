@@ -773,10 +773,15 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 			/* TODO -- ensure that data for VMCS references by operand is in memory */
 			/* TODO -- initialize V<CS region */
 			x86_stl_phys(cs, addr + offsetof(vtx_vmcs_t, launch_state), LAUNCH_STATE_CLEAR);
-
+			// sets revision identifier to 0 as well, just because width is 32
+			// we dont use offsetof here since that would produce bitfield ptr error
+			// luckily, revision_identifier is the first element in the struct
+			x86_stl_phys(cs, addr, MSR_IA32_VMX_BASIC_DEFAULT & 0x7FFFFFFF);
 			if ((uint64_t)(env->vmcs_ptr_register) == addr){
+				LOG("Resetting vmcs_ptr_register")
 				env->vmcs_ptr_register = VMCS_CLEAR_ADDRESS;
 			}
+			LOG("VMCS initialized")
 			vm_exception(SUCCEED, 0, env);
 		}
 	}
