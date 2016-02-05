@@ -313,6 +313,38 @@
 #define MSR_TSC_ADJUST                  0x0000003b
 #define MSR_IA32_TSCDEADLINE            0x6e0
 
+/* VMX MSRs */
+#define MSR_IA32_VMX_BASIC              0x480
+#define MSR_IA32_VMX_PINBASED_CTLS      0x481
+#define MSR_IA32_VMX_PROCBASED_CTLS     0x482
+#define MSR_IA32_VMX_EXIT_CTLS          0x483
+#define MSR_IA32_VMX_ENTRY_CTLS         0x484
+#define MSR_IA32_VMX_MISC               0x485
+#define MSR_IA32_VMX_CR0_FIXED0         0x486
+#define MSR_IA32_VMX_CR0_FIXED1         0x487
+#define MSR_IA32_VMX_CR4_FIXED0         0x488
+#define MSR_IA32_VMX_CR4_FIXED1         0x489
+#define MSR_IA32_VMX_ENUM               0x48A
+#define MSR_IA32_VMX_PROCBASED_CTLS2    0x48B
+#define MSR_IA32_VMX_EPT_VPID_CAP       0x48C
+#define MSR_IA32_VMX_VMFUNC             0x491
+
+/* VMX MSRs default values */
+#define MSR_IA32_VMX_BASIC_DEFAULT              (((6ULL << 50)) | ((4096ULL) << 32) | 0x00000000)
+#define MSR_IA32_VMX_PINBASED_CTLS_DEFAULT      0x481
+#define MSR_IA32_VMX_PROCBASED_CTLS_DEFAULT     0x482
+#define MSR_IA32_VMX_EXIT_CTLS_DEFAULT          0x483
+#define MSR_IA32_VMX_ENTRY_CTLS_DEFAULT         0x484
+#define MSR_IA32_VMX_MISC_DEFAULT               0x485
+#define MSR_IA32_VMX_CR0_FIXED0_DEFAULT         0x486
+#define MSR_IA32_VMX_CR0_FIXED1_DEFAULT         0x487
+#define MSR_IA32_VMX_CR4_FIXED0_DEFAULT         0x488
+#define MSR_IA32_VMX_CR4_FIXED1_DEFAULT         0x489
+#define MSR_IA32_VMX_ENUM_DEFAULT               0x48A
+#define MSR_IA32_VMX_PROCBASED_CTLS2_DEFAULT    0x48B
+#define MSR_IA32_VMX_EPT_VPID_CAP_DEFAULT       0x48C
+#define MSR_IA32_VMX_VMFUNC_DEFAULT             0x491
+
 #define MSR_P6_PERFCTR0                 0xc1
 
 #define MSR_IA32_SMBASE                 0x9e
