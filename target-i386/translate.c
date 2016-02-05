@@ -2981,6 +2981,38 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
         b1 = 3;
     else
         b1 = 0;
+
+    // vmx additions
+    modrm = cpu_ldub_code(env, s->pc++);
+    reg = ((modrm >> 3) & 7);
+
+
+    if ((b | (b1<<8)) == 0x138 && (modrm == 0x80 || modrm == 0x81)){
+
+        b = modrm;
+        rm = modrm & 7;
+        reg = ((modrm >> 3) & 7) | rex_r;
+        mod = (modrm >> 6) & 3;
+
+        if (b1) {
+            op1_offset = offsetof(CPUX86State,xmm_regs[reg]);
+            if (mod != 3) {
+                gen_lea_modrm(env, s, modrm);
+                switch (b) {
+                case 0x80: 
+                    gen_helper_vtx_invept(cpu_env, cpu_regs[reg], tcg_const_i64(0));
+                    break;
+                case 0x81:
+                    gen_helper_vtx_invvpid(cpu_env, cpu_regs[reg], tcg_const_i64(0));
+                    break;
+                }
+            }
+        }
+
+        return;
+    
+    }
+
     sse_fn_epp = sse_op_table1[b][b1];
     if (!sse_fn_epp) {
         goto illegal_op;
@@ -3002,6 +3034,7 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     }
     if (s->flags & HF_EM_MASK) {
     illegal_op:
+        
         gen_exception(s, EXCP06_ILLOP, pc_start - s->cs_base);
         return;
     }
@@ -3026,8 +3059,7 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
         gen_helper_enter_mmx(cpu_env);
     }
 
-    modrm = cpu_ldub_code(env, s->pc++);
-    reg = ((modrm >> 3) & 7);
+    
     if (is_xmm)
         reg |= rex_r;
     mod = (modrm >> 6) & 3;
@@ -5200,6 +5232,9 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 gen_helper_vtx_vmclear(cpu_env, cpu_A0);
             else
                 gen_helper_vtx_vmptrld(cpu_env, cpu_A0);
+        } else if (reg == 7){
+            gen_lea_modrm(env, s, modrm);
+            gen_helper_vtx_vmptrst(cpu_env, cpu_A0);
         } else if ((mod == 3) || ((modrm & 0x38) != 0x8))
             goto illegal_op;
 #ifdef TARGET_X86_64
@@ -7185,14 +7220,15 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
 
         /* vtx calls */
         switch (modrm){
-            case 0xc1: break;
+            case 0xc1: gen_helper_vtx_vmcall(cpu_env); break;
             case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
-            //case 0xc3: gen_helper_vtx_vmresume(cpu_env); break;
+            case 0xc3: gen_helper_vtx_vmresume(cpu_env); break;
             case 0xc4: gen_helper_vtx_vmxoff(cpu_env); break;
+            case 0xd4: gen_helper_vtx_vmfunc(cpu_env); break;
             default: break;
         }
         // exit from 0x101 if vtx call was made
-        if (0xc1 <= modrm && modrm <= 0xc4) break; 
+        if ((0xc1 <= modrm && modrm <= 0xc4) || modrm == 0xd4) break; 
 
         switch(op) {
         case 0: /* sgdt */
@@ -7808,7 +7844,14 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         break;
 
     /* VMX only */
-    case 0x178: // vmread    
+    case 0x178: // vmread
+        ot = mo_b_d(b, dflag);
+        modrm = cpu_ldub_code(env, s->pc++);
+        reg = ((modrm >> 3) & 7) | rex_r;
+
+        gen_ldst_modrm(env, s, modrm, ot, OR_TMP0, 0);
+        gen_helper_vtx_vmread(cpu_env, cpu_regs[reg], cpu_T[0]);
+        break;    
     case 0x179: // vmwrite 
 
         ot = mo_b_d(b, dflag);
@@ -7829,6 +7872,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
     if (s->prefix & PREFIX_LOCK)
         gen_helper_unlock();
     /* XXX: ensure that no lock was generated */
+    printf("Illegal Operation with b=%x\n",b);
     gen_exception(s, EXCP06_ILLOP, pc_start - s->cs_base);
     return s->pc;
 }

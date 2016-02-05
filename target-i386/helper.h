@@ -212,6 +212,14 @@ DEF_HELPER_2(vtx_vmptrld, void, env, tl)
 DEF_HELPER_2(vtx_vmclear, void, env, tl)
 DEF_HELPER_3(vtx_vmwrite, void, env, tl, tl)
 
+DEF_HELPER_3(vtx_invept, void, env, tl, i64)
+DEF_HELPER_3(vtx_invvpid, void, env, tl, i64)
+DEF_HELPER_1(vtx_vmcall, void, env)
+DEF_HELPER_1(vtx_vmfunc, void, env)
+DEF_HELPER_1(vtx_vmresume, void, env)
+DEF_HELPER_2(vtx_vmptrst, void, env, tl)
+DEF_HELPER_3(vtx_vmread, void, env, tl, tl)
+
 
 #define SHIFT 0
 #include "ops_sse_header.h"

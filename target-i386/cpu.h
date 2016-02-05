@@ -330,8 +330,8 @@
 #define MSR_IA32_VMX_VMFUNC             0x491
 
 /* VMX MSRs default values */
-#define MSR_IA32_VMX_BASIC_DEFAULT              (((6ULL << 50)) | ((4096ULL) << 32) | 0x00000012)
 /* values obtained from Core i7-4790 CPU @ 3.60 GHz */
+#define MSR_IA32_VMX_BASIC_DEFAULT              0xda040000000012ULL
 #define MSR_IA32_VMX_PINBASED_CTLS_DEFAULT      0x7f00000016ULL
 #define MSR_IA32_VMX_PROCBASED_CTLS_DEFAULT     0xfff9fffe0401e172ULL
 #define MSR_IA32_VMX_EXIT_CTLS_DEFAULT          0x7fffff00036dffULL

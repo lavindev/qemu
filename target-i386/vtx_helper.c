@@ -683,58 +683,61 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 	}
 
 }
-#ifdef INCLUDE
-void helper_vtx_invept(CPUX86State * env, uint32_t reg, uint64_t mem[2]){
 
+void helper_vtx_invept(CPUX86State * env, target_ulong reg, uint64_t mem){
+	LOG_ENTRY
+	LOG_EXIT
 }
 
-void helper_vtx_invvpid(CPUX86State * env, uint32_t reg, uint64_t mem[2]){
-
+void helper_vtx_invvpid(CPUX86State * env, target_ulong reg, uint64_t mem){
+	LOG_ENTRY
+	LOG_EXIT
 }
 
 void helper_vtx_vmcall(CPUX86State * env){
 
-	int cpl = env->segs[R_CS].selector & 0x3;
+	// int cpl = env->segs[R_CS].selector & 0x3;
 
-	if (env->vmx_operation == VMX_DISABLED){
-		raise_exception(env, EXCP06_ILLOP);
-	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-		/* vm exit */
-	} else if (ISSET(env->eflags, VM_MASK) or (ISSET(env->efer,MSR_EFER_LMA) and  !ISSET(env->segs[R_CS].flags, DESC_L_MASK)) ){
-		raise_exception(env, EXCP06_ILLOP);
-	} else if (cpl > 0){
-		raise_exception(env, EXCP0D_GPF);
-	} else if (SMM or no dual treatment or !ISSET(env, /* IA32_SMM_MONITOR_CTL */)){
-		vm_exception(FAIL, 1, env);
-	} else if (/*dual treatment of of SMIs and SMM is active*/){
-		/* VMM VM exit? */
-	} else if (env->vmcs_ptr_register == NULL or env->vmcs_ptr_register == VMCS_CLEAR_ADDRESS){
-		vm_exception(FAIL_INVALID, 0, env);
-	} else if (env->processor_vmcs.launch_state != LAUNCH_STATE_CLEAR){
-		vm_exception(FAIL, 1, env)
-	} else if (/* vm exit control fields invalid */){
-		vm_exception(FAIL, 20, env);
-	} else {
+	// if (env->vmx_operation == VMX_DISABLED){
+	// 	raise_exception(env, EXCP06_ILLOP);
+	// } else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+	// 	/* vm exit */
+	// } else if (ISSET(env->eflags, VM_MASK) or (ISSET(env->efer,MSR_EFER_LMA) and  !ISSET(env->segs[R_CS].flags, DESC_L_MASK)) ){
+	// 	raise_exception(env, EXCP06_ILLOP);
+	// } else if (cpl > 0){
+	// 	raise_exception(env, EXCP0D_GPF);
+	// } else if (SMM or no dual treatment or !ISSET(env, /* IA32_SMM_MONITOR_CTL */)){
+	// 	vm_exception(FAIL, 1, env);
+	// } else if (/*dual treatment of of SMIs and SMM is active*/){
+	// 	/* VMM VM exit? */
+	// } else if (env->vmcs_ptr_register == NULL or env->vmcs_ptr_register == VMCS_CLEAR_ADDRESS){
+	// 	vm_exception(FAIL_INVALID, 0, env);
+	// } else if (env->processor_vmcs.launch_state != LAUNCH_STATE_CLEAR){
+	// 	vm_exception(FAIL, 1, env)
+	// } else if (/* vm exit control fields invalid */){
+	// 	vm_exception(FAIL, 20, env);
+	// } else {
 
-		/* enter SMM */
-		int rev = /* revision identfier in MSEG */
-		if (rev is unsupported){
-			/* leave SMM */
-			vm_exception(FAIL, 22, env);
-		} else {
-			int smm_features = /* from MSEG */
-			if (smm_features is invalid){
-				/*leave SMM */
-				vm_exception(FAIL, 24, env);
-			} else {
-				/* activate dual monitor treatment of SMIs and SMM */
-			}
-		}
+	// 	/* enter SMM */
+	// 	int rev = /* revision identfier in MSEG */
+	// 	if (rev is unsupported){
+	// 		/* leave SMM */
+	// 		vm_exception(FAIL, 22, env);
+	// 	} else {
+	// 		int smm_features = /* from MSEG */
+	// 		if (smm_features is invalid){
+	// 			/*leave SMM */
+	// 			vm_exception(FAIL, 24, env);
+	// 		} else {
+	// 			/* activate dual monitor treatment of SMIs and SMM */
+	// 		}
+	// 	}
 
-	}
-
+	// }
+	LOG_ENTRY
+	LOG_EXIT
 }
-#endif
+
 void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 
 	LOG_ENTRY
@@ -781,15 +784,17 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 	LOG_EXIT
 
 }
-#ifdef INCLUDE
-void helper_vtx_vmfunc(CPUX86State * env){
 
-	target_ulong eax = env->regs[R_EAX];
+
+void helper_vtx_vmfunc(CPUX86State * env){
+	LOG_ENTRY
+	LOG_EXIT
+	//target_ulong eax = env->regs[R_EAX];
 
 	/* only used for EPTP switching, not implementing for now */
 
 }
-#endif
+
 
 void helper_vtx_vmlaunch(CPUX86State * env){
 	
@@ -876,115 +881,119 @@ void helper_vtx_vmexit(CPUX86State * env){
 
 }
 
-#ifdef INCLUDE
+
 void helper_vtx_vmresume(CPUX86State * env){
 		
-	int cpl = env->segs[R_CS].selector & 0x3;
+	// int cpl = env->segs[R_CS].selector & 0x3;
 
-	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+	// vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
 
-	/* again, check DESC_L_MASK 64 bit only ? */
-	if (env->vmx_operation == VMX_DISABLED or
-		!ISSET(env->cr[0], CR0_PE_MASK) or
-		ISSET(env->eflags, VM_MASK) or 
-		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-			raise_exception(env, EXCP06_ILLOP);
-	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-		/* vm exit */
-	} else if (cpl > 0){
-		raise_exception(env, EXCP0D_GPF);
-	} else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
-		vm_exception(FAIL_INVALID, 0, env);
-	// } else if (/* events blocked by MOV SS */){
-		// vm_exception(FAIL, 26, env);
-	} else if (VMRESUME && vmcs->launch_state != LAUNCH_STATE_LAUNCHED){
-		vm_exception(FAIL, 5, env);
-	} else {
-		// /* check settings */
-		// if (invalid settings){
-		// 	/* approppriate vm_exception , env*/
-		// } else {
-		// 	/* attempt to load guest state and PDPTRs as appropraite */
-		// 	/* clear address range monitoring */
-		// 	if (fail){
-		// 		vm entry fails
-		// 	} else {
-		// 		/* attempt to load MSRs*/
-		// 		if (fail_msr){
-		// 			vm entry fails
-		// 		} else {
-		// 			if (VMLAUNCH){
-		// 				vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
-		// 			}
-		// 			if (SMM && entry to SMM control is 0){
-		// 				if ( deactivate dual mintor treatement == 0){
-		// 					smm transfer vmcs = vmcs;
-		// 				}
-		// 				if (exec vmcs ptr == VMCS_CLEAR_ADDRESS){
-		// 					vmcs = vmcs link ptr  //MARK
-		// 				} else {
-		// 					vmcs = exec vmcs ptr; //MARK
-		// 				}
-		// 				leave SMM
-		// 			}
-		// 			vm_exception(SUCCEED, 0, env);
-		// 		}
-		// 	}
-		// }
-	}
-
+	// /* again, check DESC_L_MASK 64 bit only ? */
+	// if (env->vmx_operation == VMX_DISABLED or
+	// 	!ISSET(env->cr[0], CR0_PE_MASK) or
+	// 	ISSET(env->eflags, VM_MASK) or 
+	// 	(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+	// 		raise_exception(env, EXCP06_ILLOP);
+	// } else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+	// 	/* vm exit */
+	// } else if (cpl > 0){
+	// 	raise_exception(env, EXCP0D_GPF);
+	// } else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
+	// 	vm_exception(FAIL_INVALID, 0, env);
+	// // } else if (/* events blocked by MOV SS */){
+	// 	// vm_exception(FAIL, 26, env);
+	// } else if (VMRESUME && vmcs->launch_state != LAUNCH_STATE_LAUNCHED){
+	// 	vm_exception(FAIL, 5, env);
+	// } else {
+	// 	// /* check settings */
+	// 	// if (invalid settings){
+	// 	// 	/* approppriate vm_exception , env*/
+	// 	// } else {
+	// 	// 	/* attempt to load guest state and PDPTRs as appropraite */
+	// 	// 	/* clear address range monitoring */
+	// 	// 	if (fail){
+	// 	// 		vm entry fails
+	// 	// 	} else {
+	// 	// 		/* attempt to load MSRs*/
+	// 	// 		if (fail_msr){
+	// 	// 			vm entry fails
+	// 	// 		} else {
+	// 	// 			if (VMLAUNCH){
+	// 	// 				vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
+	// 	// 			}
+	// 	// 			if (SMM && entry to SMM control is 0){
+	// 	// 				if ( deactivate dual mintor treatement == 0){
+	// 	// 					smm transfer vmcs = vmcs;
+	// 	// 				}
+	// 	// 				if (exec vmcs ptr == VMCS_CLEAR_ADDRESS){
+	// 	// 					vmcs = vmcs link ptr  //MARK
+	// 	// 				} else {
+	// 	// 					vmcs = exec vmcs ptr; //MARK
+	// 	// 				}
+	// 	// 				leave SMM
+	// 	// 			}
+	// 	// 			vm_exception(SUCCEED, 0, env);
+	// 	// 		}
+	// 	// 	}
+	// 	// }
+	// }
+	LOG_ENTRY
+	LOG_EXIT
 }
 
-void helper_vtx_vmptrst(CPUX86State * env, uint64_t * dest){
+void helper_vtx_vmptrst(CPUX86State * env, target_ulong vmcs_addr_phys){
 
-	int cpl = env->segs[R_CS].selector & 0x3;
+	// int cpl = env->segs[R_CS].selector & 0x3;
 
-	/* again, check DESC_L_MASK 64 bit only ? */
-	if (env->vmx_operation == VMX_DISABLED or
-		!ISSET(env->cr[0], CR0_PE_MASK) or
-		ISSET(env->eflags, VM_MASK) or 
-		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-			raise_exception(env, EXCP06_ILLOP);
-	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-		/* vm exit */
-	} else if (cpl > 0){
-		raise_exception(env, EXCP0D_GPF);
-	} else {
-		*dest = (uint64_t) env->vmcs;
-		vm_exception(SUCCEED,0, env);
-	}
-
+	// /* again, check DESC_L_MASK 64 bit only ? */
+	// if (env->vmx_operation == VMX_DISABLED or
+	// 	!ISSET(env->cr[0], CR0_PE_MASK) or
+	// 	ISSET(env->eflags, VM_MASK) or 
+	// 	(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+	// 		raise_exception(env, EXCP06_ILLOP);
+	// } else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+	// 	/* vm exit */
+	// } else if (cpl > 0){
+	// 	raise_exception(env, EXCP0D_GPF);
+	// } else {
+	// 	*dest = (uint64_t) env->vmcs;
+	// 	vm_exception(SUCCEED,0, env);
+	// }
+	LOG_ENTRY
+	LOG_EXIT	
 }
 
 void helper_vtx_vmread(CPUX86State * env, target_ulong op1, target_ulong op2){
 
-	int cpl = env->segs[R_CS].selector & 0x3;
+	// int cpl = env->segs[R_CS].selector & 0x3;
 
-	/* again, check DESC_L_MASK 64 bit only ? */
-	if (env->vmx_operation == VMX_DISABLED or
-		!ISSET(env->cr[0], CR0_PE_MASK) or
-		ISSET(env->eflags, VM_MASK) or 
-		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-			raise_exception(env, EXCP06_ILLOP);
-	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION AND /* shadow stuff */){
-		/* vm exit */
-	} else if (cpl > 0){
-		raise_exception(env, EXCP0D_GPF);
-	} else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs == VMCS_CLEAR_ADDRESS) or
-			   (env->vmx_operation == VMX_NON_ROOT_OPERATION and /* vmcs link ptr */)){
-		vm_exception(FAIL_INVALID, 0, env);
-	} else if (src op no correpsonse){
-		vm_exception(FAIL, 12, env);
-	} else {
-		if (env->vmx_operation == VMX_ROOT_OPERATION){
-			*dest = 
-		} else {
-			*dest = 
-		}
-		vm_exception(SUCCEED,0, env);
-	}
+	// /* again, check DESC_L_MASK 64 bit only ? */
+	// if (env->vmx_operation == VMX_DISABLED or
+	// 	!ISSET(env->cr[0], CR0_PE_MASK) or
+	// 	ISSET(env->eflags, VM_MASK) or 
+	// 	(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+	// 		raise_exception(env, EXCP06_ILLOP);
+	// } else if (env->vmx_operation == VMX_NON_ROOT_OPERATION AND /* shadow stuff */){
+	// 	/* vm exit */
+	// } else if (cpl > 0){
+	// 	raise_exception(env, EXCP0D_GPF);
+	// } else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs == VMCS_CLEAR_ADDRESS) or
+	// 		   (env->vmx_operation == VMX_NON_ROOT_OPERATION and /* vmcs link ptr */)){
+	// 	vm_exception(FAIL_INVALID, 0, env);
+	// } else if (src op no correpsonse){
+	// 	vm_exception(FAIL, 12, env);
+	// } else {
+	// 	if (env->vmx_operation == VMX_ROOT_OPERATION){
+	// 		*dest = 
+	// 	} else {
+	// 		*dest = 
+	// 	}
+	// 	vm_exception(SUCCEED,0, env);
+	// }
+	LOG_ENTRY
+	LOG_EXIT	
 }
-#endif
+
 	
 static int32_t get_vmcs_offset16(target_ulong vmcs_field_encoding, int32_t is_write){
 
