@@ -9,19 +9,22 @@ typedef struct QEMU_PACKED segment_registers_state {
 	uint16_t selector;
 	target_ulong base_addr;
 	uint32_t segment_limit;
-	struct QEMU_PACKED _access_rights {
-		uint32_t segment_type:4;
-		uint32_t descriptor_type:1;
-		uint32_t dpl:2;
-		uint32_t segment_present:1;
-		uint32_t reserved0:4;
-		uint32_t avl:1;
-		uint32_t reserved1:1;
-		uint32_t db:1;
-		uint32_t granularity:1;
-		uint32_t unusable:1;
-		uint32_t reserved2:15;
-	} access_rights;
+	union {
+		uint32_t access_rights_val;
+		struct QEMU_PACKED _access_rights {
+			uint32_t segment_type:4;
+			uint32_t descriptor_type:1;
+			uint32_t dpl:2;
+			uint32_t segment_present:1;
+			uint32_t reserved0:4;
+			uint32_t avl:1;
+			uint32_t reserved1:1;
+			uint32_t db:1;
+			uint32_t granularity:1;
+			uint32_t unusable:1;
+			uint32_t reserved2:15;
+		} access_rights;
+	};
 } segment_state_t;
 
 typedef struct QEMU_PACKED table_registers_state {
@@ -183,8 +186,10 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 	#define VM_EXEC_SEC_ENABLE_XSAVES_XSRSTORS 	(1U << 20)
 	#define VM_EXEC_SEC_TSC_SCALING 			(1U << 25)
 	
-	uint32_t exception_bitmap;
 	/* one bit per exception */
+	uint32_t exception_bitmap;
+	uint32_t page_fault_error_code_mask;
+	uint32_t page_fault_error_code_match;
 
 	uint64_t io_bitmap_addr_A;
 	uint64_t io_bitmap_addr_B;
@@ -233,6 +238,9 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 
 	uint64_t vm_function_control_vector;
 	uint64_t eptp_list_address;
+
+	uint64_t vmread_bitmap;
+	uint64_t vmwrite_bitmap;
 
 	uint64_t virt_exception_info_addr;
 	uint16_t eptp_index;
@@ -328,6 +336,10 @@ struct QEMU_PACKED vmcs_vmexit_information_fields {
 
 	uint32_t instruction_length;
 	uint32_t instruction_info;
+	target_ulong io_rcx;
+	target_ulong io_rsi;
+	target_ulong io_rdi;
+	target_ulong io_rip;
 
 	uint32_t instruction_error_field;
 
@@ -352,6 +364,12 @@ typedef struct QEMU_PACKED vtx_vmcs {
 	uint32_t launch_state;
 	#define LAUNCH_STATE_CLEAR 0
 	#define LAUNCH_STATE_LAUNCHED 1
+
+
+	/* private -- not in spec */
+	target_ulong vmread_field_out;
+	uint32_t vmread_field_encoding;
+
 
 } vtx_vmcs_t;
 

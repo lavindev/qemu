@@ -1028,6 +1028,11 @@ typedef struct CPUX86State {
     void * processor_vmcs;
     target_ulong vmcs_ptr_register;
     target_ulong vmxon_ptr_register;
+    struct QEMU_PACKED
+    {
+    	target_ulong vmread_field;
+    	target_ulong vmcs_encoding;
+    } vmread_output;
     uint32_t vmx_operation;
     #define VMX_DISABLED 0
     #define VMX_ROOT_OPERATION 1

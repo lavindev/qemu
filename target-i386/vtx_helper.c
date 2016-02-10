@@ -37,6 +37,7 @@
 
 // }
 
+
 static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86State * env){
 
 	/* TODO */
@@ -45,28 +46,27 @@ static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86St
 	target_ulong update_mask;
 	if (exception == SUCCEED){
 		update_mask = CC_C | CC_P | CC_A | CC_S | CC_Z | CC_O;
-		env->eflags &= ~update_mask;
+		cpu_load_eflags(env, 0, update_mask);
 	} else if (exception == FAIL_INVALID){
-		update_mask = CC_P | CC_A | CC_S | CC_Z | CC_O;
-		env->eflags &= ~update_mask;
-		env->eflags |= CC_C;
+		update_mask = CC_P | CC_A | CC_S | CC_Z | CC_O | CC_C;
+		cpu_load_eflags(env, CC_C, update_mask);
 	} else if(exception == FAIL_VALID){
-		update_mask = CC_C | CC_P | CC_A | CC_S | CC_O;
-		env->eflags &= ~update_mask;
-		env->eflags |= CC_Z;
+		update_mask = CC_C | CC_P | CC_A | CC_S | CC_O | CC_Z;
+		cpu_load_eflags(env, CC_Z, update_mask);
 		// TODO: Set VM instruction error field to ErrNum
 	}
 
 }
 
-static void update_processor_vmcs(CPUX86State * env){
+// static void update_processor_vmcs(CPUX86State * env){
 
-	CPUState *cs = CPU(x86_env_get_cpu(env));
+// 	CPUState *cs = CPU(x86_env_get_cpu(env));
 
-	cpu_memory_rw_debug(cs, env->vmcs_ptr_register, env->processor_vmcs, sizeof(vtx_vmcs_t), 0 );
+// 	int ret = cpu_memory_rw_debug(cs, env->vmcs_ptr_register, env->processor_vmcs, sizeof(vtx_vmcs_t), 0 );
 
+// 	printf("Update processor returned %d\n", ret);
 
-}
+// }
 
 static void clear_address_range_monitoring(CPUX86State * env){
 	/* Address range monitoring not implemented in QEMU */
@@ -331,11 +331,10 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 	uint32_t new_crN;
 
 	/* Loading Guest Control Registers, Debug Registers, and MSRs */
-	{
+	//{
 		/* load CR0 */
-		new_crN = env->cr[0];
-		reserved_mask = 0x7FF8FFD0;
-		new_crN &= ~reserved_mask;
+		reserved_mask = 0x7FFAFFD0;
+		new_crN = (env->cr[0] & reserved_mask);
 		new_crN |= (g->cr0 & ~reserved_mask);
 		cpu_x86_update_cr0(env, new_crN);
 
@@ -370,12 +369,13 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		}
 
 		if (ISSET(cf->vmentry_controls, VM_ENTRY_LOAD_EFER)){
-			env->efer = g->msr_ia32_efer;
+			//env->efer = g->msr_ia32_efer;
+			cpu_load_efer(env, g->msr_ia32_efer);
 		}
-	}
+	//}
 
 	/* Loading Guest Segment Registers and Descriptor-Table Registers */
-	{
+	//{
 		// exceptions in 32 bit only
 		if (g->cs.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
 		if (g->ss.access_rights.unusable) raise_exception(env, EXCP0C_STACK);
@@ -388,31 +388,14 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (g->ldtr.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
 
 		#define LOAD_ACCESS_RIGHTS(flags, access_rights) do {	\
-			uint32_t newflags = 0;								\
-			newflags |= access_rights.segment_type << 8;		\
-			newflags |= access_rights.descriptor_type << 12;	\
-			newflags |= access_rights.dpl << DESC_DPL_SHIFT;	\
-			newflags |= access_rights.segment_present << 15;	\
-			newflags |= access_rights.avl << 20;				\
-			newflags |= access_rights.db << DESC_B_SHIFT;		\
-			newflags |= access_rights.granularity << 23;		\
-			flags = newflags;									\
+			flags = access_rights; 								\
 		} while(0)	
 
-		#define ACCESS_RIGHTS(access_rights)			\
-			 (access_rights.segment_type << 8) | 		\
-			 (access_rights.descriptor_type << 12) | 	\
-			 (access_rights.dpl << DESC_DPL_SHIFT) | 	\
-			 (access_rights.segment_present << 15) | 	\
-			 (access_rights.avl << 20) | 				\
-			 (access_rights.db << DESC_B_SHIFT) | 		\
-			 (access_rights.granularity << 23);										
-		
 		// load tr
 		env->tr.selector = g->tr.selector;
 		env->tr.base = g->tr.base_addr;
 		env->tr.limit = g->tr.segment_limit;
-		LOAD_ACCESS_RIGHTS(env->tr.flags, g->tr.access_rights);
+		LOAD_ACCESS_RIGHTS(env->tr.flags, g->tr.access_rights_val);
 
 		// load cs
 		if (g->cs.access_rights.unusable){
@@ -421,7 +404,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 			// NOTE: 64 bit needs L flag below
 			env->segs[R_CS].flags |= (g->cs.access_rights.db << DESC_B_SHIFT) | (g->cs.access_rights.granularity << 23);
 		} else {
-			LOAD_ACCESS_RIGHTS(env->segs[R_CS].flags, g->cs.access_rights);
+			LOAD_ACCESS_RIGHTS(env->segs[R_CS].flags, g->cs.access_rights_val);
 		}
 		cpu_x86_load_seg_cache(env, R_CS, g->cs.selector, g->cs.base_addr, g->cs.segment_limit, env->segs[R_CS].flags);
 
@@ -434,7 +417,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 			env->segs[R_SS].flags |= (DESC_B_MASK);
 			cpu_x86_load_seg_cache(env, R_SS, g->ss.selector, env->segs[R_SS].base, g->cs.segment_limit, env->segs[R_SS].flags);
 		} else {
-			LOAD_ACCESS_RIGHTS(env->segs[R_SS].flags, g->ss.access_rights);
+			LOAD_ACCESS_RIGHTS(env->segs[R_SS].flags, g->ss.access_rights_val);
 			cpu_x86_load_seg_cache(env, R_SS, g->ss.selector, g->ss.base_addr, g->ss.segment_limit, env->segs[R_SS].flags);
 		}
 
@@ -442,7 +425,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (!g->ds.access_rights.unusable){
 			env->segs[R_DS].base = g->ds.base_addr;
 			env->segs[R_DS].limit = g->ds.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_DS].flags, g->ds.access_rights);
+			LOAD_ACCESS_RIGHTS(env->segs[R_DS].flags, g->ds.access_rights_val);
 		}
 		cpu_x86_load_seg_cache(env, R_DS, env->segs[R_DS].selector, env->segs[R_DS].base, env->segs[R_DS].limit, env->segs[R_DS].flags);
 
@@ -450,7 +433,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (!g->es.access_rights.unusable){
 			env->segs[R_ES].base = g->es.base_addr;
 			env->segs[R_ES].limit = g->es.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_ES].flags, g->es.access_rights);
+			LOAD_ACCESS_RIGHTS(env->segs[R_ES].flags, g->es.access_rights_val);
 		}
 		cpu_x86_load_seg_cache(env, R_ES, env->segs[R_ES].selector, env->segs[R_ES].base, env->segs[R_ES].limit, env->segs[R_ES].flags);
 
@@ -458,7 +441,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		env->segs[R_FS].base = g->fs.base_addr;
 		if (!g->fs.access_rights.unusable){
 			env->segs[R_FS].limit = g->fs.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_FS].flags, g->fs.access_rights);
+			LOAD_ACCESS_RIGHTS(env->segs[R_FS].flags, g->fs.access_rights_val);
 			// some 64 bit stuff
 		}
 		cpu_x86_load_seg_cache(env, R_FS, env->segs[R_FS].selector, env->segs[R_FS].base, env->segs[R_FS].limit, env->segs[R_FS].flags);
@@ -467,7 +450,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		env->segs[R_GS].base = g->gs.base_addr;
 		if (!g->gs.access_rights.unusable){
 			env->segs[R_GS].limit = g->gs.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_GS].flags, g->gs.access_rights);
+			LOAD_ACCESS_RIGHTS(env->segs[R_GS].flags, g->gs.access_rights_val);
 			// some 64 bit stuff
 		}
 		cpu_x86_load_seg_cache(env, R_GS, env->segs[R_GS].selector, env->segs[R_GS].base, env->segs[R_GS].limit, env->segs[R_GS].flags);
@@ -476,36 +459,37 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (!g->ldtr.access_rights.unusable){
 			env->ldt.base = g->ldtr.base_addr;
 			env->ldt.limit = g->ldtr.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->ldt.flags, g->ldtr.access_rights);
+			LOAD_ACCESS_RIGHTS(env->ldt.flags, g->ldtr.access_rights_val);
 		}
 
 		// GDT, IDT
-		env->gdt.base = g->gdtr.base_addr;
-		env->gdt.limit = g->gdtr.limit;
+		// env->gdt.base = g->gdtr.base_addr;
+		// env->gdt.limit = g->gdtr.limit;
 
-		env->idt.base = g->idtr.base_addr;
-		env->idt.limit = g->idtr.limit;
-	} 
+		// env->idt.base = g->idtr.base_addr;
+		// env->idt.limit = g->idtr.limit;
+	//} 
 
 	/* Loading Guest RIP, RSP, and RFLAGS */
-	{
+	//{
 		// watch out for 64 bit
 		env->regs[R_ESP] = g->esp;
 		env->eip = g->eip;
-		env->eflags = g->eflags;
-	}
+		// /env->eflags = g->eflags;
+		cpu_load_eflags(env, g->eflags, 0xFFFFFFFF);
+	//}
 
-	/* Loading Page-Directory-Pointer-Table Entries */
-	{
-		/* EPT stuff, not implemented */
-	}
+	// /* Loading Page-Directory-Pointer-Table Entries */
+	// {
+	// 	/* EPT stuff, not implemented */
+	// }
 
-	/* Updating Non-Register State */
-	{
-		/* EPT stuff, not implemented */
+	//  Updating Non-Register State 
+	// {
+	// 	/* EPT stuff, not implemented */
 
-		/* virtual interrupts, no idea what to do here */
-	}
+	// 	/* virtual interrupts, no idea what to do here */
+	// }
 
 	clear_address_range_monitoring(env);
 
@@ -575,6 +559,10 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 					/* TODO: block INIT signals */
 					/* TODO: block A20M */
 					//env->a20_mask = -1; // no change -- breaks everything if 1/0
+
+					// TEMP FIXME
+					env->processor_vmcs = (vtx_vmcs_t *) calloc(1, sizeof(vtx_vmcs_t));
+
 					clear_address_range_monitoring(env);
 					vm_exception(SUCCEED, 0, env);
 					LOG("<1> In VMX Root Operation")
@@ -627,6 +615,9 @@ void helper_vtx_vmxoff(CPUX86State * env){
 		//env->a20_mask = -1; // no change -- breaks everything if 1/0		
 		clear_address_range_monitoring(env);
 		vm_exception(SUCCEED,0, env);
+
+		free(env->processor_vmcs);
+		env->processor_vmcs = NULL;
 	}
 
 	LOG_EXIT
@@ -670,11 +661,6 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 				vm_exception(FAIL, 11, env); // to, envdo
 			} else {
 				env->vmcs_ptr_register = addr;
-
-				// debug -- rethink this
-				env->processor_vmcs = (vtx_vmcs_t *) calloc(1, sizeof(vtx_vmcs_t));
-				update_processor_vmcs(env);
-
 				printf("Set vmcs ptr to %d\n", addr);
 				//load_vmcs_proc(addr);
 				vm_exception(SUCCEED, 0, env);
@@ -968,38 +954,6 @@ void helper_vtx_vmptrst(CPUX86State * env, target_ulong vmcs_addr_phys){
 	LOG_EXIT	
 }
 
-void helper_vtx_vmread(CPUX86State * env, target_ulong op1, target_ulong op2){
-
-	// int cpl = env->segs[R_CS].selector & 0x3;
-
-	// /* again, check DESC_L_MASK 64 bit only ? */
-	// if (env->vmx_operation == VMX_DISABLED or
-	// 	!ISSET(env->cr[0], CR0_PE_MASK) or
-	// 	ISSET(env->eflags, VM_MASK) or 
-	// 	(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-	// 		raise_exception(env, EXCP06_ILLOP);
-	// } else if (env->vmx_operation == VMX_NON_ROOT_OPERATION AND /* shadow stuff */){
-	// 	/* vm exit */
-	// } else if (cpl > 0){
-	// 	raise_exception(env, EXCP0D_GPF);
-	// } else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs == VMCS_CLEAR_ADDRESS) or
-	// 		   (env->vmx_operation == VMX_NON_ROOT_OPERATION and /* vmcs link ptr */)){
-	// 	vm_exception(FAIL_INVALID, 0, env);
-	// } else if (src op no correpsonse){
-	// 	vm_exception(FAIL, 12, env);
-	// } else {
-	// 	if (env->vmx_operation == VMX_ROOT_OPERATION){
-	// 		*dest = 
-	// 	} else {
-	// 		*dest = 
-	// 	}
-	// 	vm_exception(SUCCEED,0, env);
-	// }
-	LOG_ENTRY
-	LOG_EXIT	
-}
-
-	
 static int32_t get_vmcs_offset16(target_ulong vmcs_field_encoding, int32_t is_write){
 
 	switch ((vmcs_field_encoding >> 1) << 1){
@@ -1038,8 +992,8 @@ static int32_t get_vmcs_offset64(target_ulong vmcs_field_encoding, int32_t is_wr
 			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_A);  
 		case 0x2002: 
 			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_B); 
-		// case 0x2004: 
-		// 	return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tsc_offset); 
+		case 0x2004: 
+			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_bitmap_low_msr); 
 		case 0x2006: 
 			return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_addr); 
 		case 0x2008: 
@@ -1070,12 +1024,10 @@ static int32_t get_vmcs_offset64(target_ulong vmcs_field_encoding, int32_t is_wr
 			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[3]);
 		case 0x2024: 
 			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_list_address);
-		// case 0x2026: 
-		// 	return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.);
-		
-		// case 0x2028: 
-		// 	return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.);
-		
+		case 0x2026: 
+			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmread_bitmap);
+		case 0x2028: 
+			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmwrite_bitmap);
 		case 0x202A: 
 			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_exception_info_addr);
 		case 0x202C: 
@@ -1120,7 +1072,8 @@ static int32_t get_vmcs_offset64(target_ulong vmcs_field_encoding, int32_t is_wr
 		break;
 
 	}
-
+	LOG("Encoding not found")
+	printf("Encoding = %d\n", vmcs_field_encoding);
 	return -1;
 }	
 
@@ -1131,8 +1084,8 @@ static int32_t get_vmcs_offset32(target_ulong vmcs_field_encoding, int32_t is_wr
 		case 0x4000: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.async_event_control);
 		case 0x4002: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.primary_control);
 		case 0x4004: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.exception_bitmap);
-		// case 0x4006: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.);
-		// case 0x4008: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.);
+		case 0x4006: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_mask);
+		case 0x4008: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_match);
 		case 0x400A: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target_count);
 		case 0x400C: return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.vmexit_controls);
 		case 0x400E: return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_count);
@@ -1238,14 +1191,26 @@ static int32_t get_vmcs_offset_target(target_ulong vmcs_field_encoding, int32_t 
 				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_qualification); 
 			else
 				return -2;
-		// case 0x6402: if (!is_write) return offsetof(vtx_vmcs_t, ); 
-		// break;
-		// case 0x6404: if (!is_write) return offsetof(vtx_vmcs_t, ); 
-		// break;
-		// case 0x6406: if (!is_write) return offsetof(vtx_vmcs_t, ); 
-		// break;
-		// case 0x6408: if (!is_write) return offsetof(vtx_vmcs_t, ); 
-		// break;
+		case 0x6402:
+			if (!is_write) 
+				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rcx); 
+			else
+				return -2;
+		case 0x6404:
+			if (!is_write) 
+				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rsi); 
+			else
+				return -2;
+		case 0x6406:
+			if (!is_write) 
+				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rdi); 
+			else
+				return -2;
+		case 0x6408:
+			if (!is_write) 
+				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rip); 
+			else
+				return -2;
 		case 0x640A: 
 			if (!is_write) 
 				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_linear_addr); 
@@ -1292,6 +1257,131 @@ static int32_t get_vmcs_offset_target(target_ulong vmcs_field_encoding, int32_t 
 	return -1;
 }
 
+
+void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_field_encoding){
+
+	LOG_ENTRY
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+	int cpl = env->segs[R_CS].selector & 0x3;
+
+	/* again, check DESC_L_MASK 64 bit only ? */
+	if (env->vmx_operation == VMX_DISABLED or
+		!ISSET(env->cr[0], CR0_PE_MASK) or
+		ISSET(env->eflags, VM_MASK) or 
+		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+			raise_exception(env, EXCP06_ILLOP);
+	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION /* AND shadow stuff */){
+		/* vm exit */
+	} else if (cpl > 0){
+		raise_exception(env, EXCP0D_GPF);
+	} else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs_ptr_register == VMCS_CLEAR_ADDRESS) or
+			   (env->vmx_operation == VMX_NON_ROOT_OPERATION /*and  vmcs link ptr */)){
+		LOG("FAIL_INVALID")
+		vm_exception(FAIL_INVALID, 0, env);
+	} else {
+
+		int32_t offset;
+
+		if (env->vmx_operation == VMX_ROOT_OPERATION){
+
+			switch ((vmcs_field_encoding >> 13) & 0x3){
+				case 0:	/* 16 bit field */
+					offset = get_vmcs_offset16(vmcs_field_encoding, 0);
+					if (offset == -1){
+						LOG("offset = -1")
+						env->vmread_output.vmcs_encoding = offset;
+					} else if (offset == -2){
+						vm_exception(FAIL, 13, env);
+						LOG("offset = -2")
+						env->vmread_output.vmcs_encoding = offset;
+					} else {
+						LOG("VMREAD working...")
+						env->vmread_output.vmread_field = x86_lduw_phys(cs, env->vmcs_ptr_register + offset);
+						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
+						vm_exception(SUCCEED,0, env);
+					}
+					break;
+				case 1: /* 64 bit field */
+					offset = get_vmcs_offset64(vmcs_field_encoding, 0);
+					if (offset == -1){
+						LOG("offset = -1")
+						env->vmread_output.vmcs_encoding = offset;
+					} else if (offset == -2){
+						vm_exception(FAIL, 13, env);
+						LOG("offset = -2")
+						env->vmread_output.vmcs_encoding = offset;
+					} else {
+						LOG("VMREAD working...")
+						if (vmcs_field_encoding & 0x02)
+							env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
+						else
+							env->vmread_output.vmread_field = x86_ldq_phys(cs, env->vmcs_ptr_register + offset);
+						
+						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
+						vm_exception(SUCCEED,0, env);
+					}
+					
+					break;
+				case 2: /* 32 bit field */
+					offset = get_vmcs_offset32(vmcs_field_encoding, 0);
+					if (offset == -1){
+						LOG("offset = -1")
+						env->vmread_output.vmcs_encoding = offset;
+					} else if (offset == -2){
+						vm_exception(FAIL, 13, env);
+						LOG("offset = -2")
+						env->vmread_output.vmcs_encoding = offset;
+					} else {
+						LOG("VMREAD working...")
+						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
+						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
+						vm_exception(SUCCEED,0, env);
+					}
+					break;
+				case 3: /* target ulong width field */
+					offset = get_vmcs_offset_target(vmcs_field_encoding, 0);
+					if (offset == -1){
+						LOG("offset = -1")
+						env->vmread_output.vmcs_encoding = offset;
+					} else if (offset == -2){
+						vm_exception(FAIL, 13, env);
+						LOG("offset = -2")
+						env->vmread_output.vmcs_encoding = offset;
+					} else {
+						LOG("VMREAD working...")
+						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
+						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
+						vm_exception(SUCCEED,0, env);
+					}
+					break;
+				default:
+					LOG("NO MATCH")
+					break;
+			}
+
+		} else {
+			LOG("unsupported VMCS Component")
+			vm_exception(FAIL, 12, env);
+		}
+
+	} 
+	// else if (src op no correpsonse){
+	// 	LOG("unsupported VMCS Component")
+	// 	vm_exception(FAIL, 12, env);
+	// } else {
+	// 	// if (env->vmx_operation == VMX_ROOT_OPERATION){
+	// 	// 	*dest = 
+	// 	// } else {
+	// 	// 	*dest = 
+	// 	// }
+	// 	// vm_exception(SUCCEED,0, env);
+	// }
+	LOG_EXIT	
+}
+
+	
+
 void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, target_ulong data){
 
 	LOG_ENTRY
@@ -1321,71 +1411,88 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 				case 0:	/* 16 bit field */
 					offset = get_vmcs_offset16(vmcs_field_encoding, 1);
 					if (offset == -1){
-						break;
+						LOG("offset = -1")
+					
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						return;
+						LOG("offset = -2")
+						
 					} else {
+						LOG("VMWRITE working...")
 						x86_stw_phys(cs, env->vmcs_ptr_register + offset, data);
-						update_processor_vmcs(env);
+						memcpy((uint16_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint16_t));
 						vm_exception(SUCCEED,0, env);
-						return;
+						
 					}
 					break;
 				case 1: /* 64 bit field */
 					offset = get_vmcs_offset64(vmcs_field_encoding, 1);
 					if (offset == -1){
-						break;
+						LOG("offset = -1")
+						
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						return;
-					} else {
-						if (vmcs_field_encoding & 0x02)
-							x86_stl_phys(cs, env->vmcs_ptr_register + offset + (sizeof(uint64_t)/2), data);
-						else
-							x86_stq_phys(cs, env->vmcs_ptr_register + offset, data);
+						LOG("offset = -2")
 						
-						update_processor_vmcs(env);
+					} else {
+						LOG("VMWRITE working...")
+						if (vmcs_field_encoding & 0x02){
+							x86_stl_phys(cs, env->vmcs_ptr_register + offset + (sizeof(uint64_t)/2), data);
+							memcpy((uint32_t *) ((unsigned char *)(env->processor_vmcs) + offset) + (sizeof(uint64_t)/2), &data, sizeof(uint32_t));
+						} else {
+							x86_stq_phys(cs, env->vmcs_ptr_register + offset, data);
+							memcpy((uint64_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint64_t));
+						}
+						
+						//update_processor_vmcs(env);
 						vm_exception(SUCCEED,0, env);
-						return;
+						
 					}
 					
 					break;
 				case 2: /* 32 bit field */
 					offset = get_vmcs_offset32(vmcs_field_encoding, 1);
 					if (offset == -1){
-						break;
+						LOG("offset = -1")
+						
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						return;
+						LOG("offset = -2")
+						
 					} else {
+						LOG("VMWRITE working...")
 						x86_stl_phys(cs, env->vmcs_ptr_register + offset, data);
-						update_processor_vmcs(env);
+						//update_processor_vmcs(env);
+						memcpy((uint32_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint32_t));
 						vm_exception(SUCCEED,0, env);
-						return;
+						
 					}
 					break;
 				case 3: /* target ulong width field */
 					offset = get_vmcs_offset_target(vmcs_field_encoding, 1);
 					if (offset == -1){
-						break;
+						LOG("offset = -1")
+						
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						return;
+						LOG("offset = -2")
+						
 					} else {
+						LOG("VMWRITE working...")
 						x86_stl_phys(cs, env->vmcs_ptr_register + offset, data);
-						update_processor_vmcs(env);
+						//update_processor_vmcs(env);
+						memcpy((uint32_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint32_t));
 						vm_exception(SUCCEED,0, env);
-						return;
+						
 					}
 					break;
 				default:
+					LOG("NO MATCH")
 					break;
 			}
+		} else {
+			vm_exception(FAIL, 12, env);
 		}
-
-		
-		vm_exception(FAIL, 12, env);
 
 	}
 

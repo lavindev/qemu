@@ -3036,6 +3036,11 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     mod = (modrm >> 6) & 3;
     if (sse_fn_epp == SSE_SPECIAL) {
         b |= (b1 << 8);
+
+        if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+            printf("Executing b = %d in VMX_NON_ROOT_OPERATION\n", b);
+        }
+
         switch(b) {
         case 0x0e7: /* movntq */
             if (mod == 3)
@@ -7199,8 +7204,10 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             default: break;
         }
         // exit from 0x101 if vtx call was made
-        if ((0xc1 <= modrm && modrm <= 0xc4) || modrm == 0xd4) break; 
-
+        if ((0xc1 <= modrm && modrm <= 0xc4) || modrm == 0xd4){
+            set_cc_op(s, CC_OP_EFLAGS);
+            break; 
+        }
         switch(op) {
         case 0: /* sgdt */
             if (mod == 3)
@@ -7820,8 +7827,14 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         modrm = cpu_ldub_code(env, s->pc++);
         reg = ((modrm >> 3) & 7) | rex_r;
 
-        gen_ldst_modrm(env, s, modrm, ot, OR_TMP0, 0);
-        gen_helper_vtx_vmread(cpu_env, cpu_regs[reg], cpu_T[0]);
+        gen_helper_vtx_vmread(cpu_env, cpu_T[0], cpu_regs[reg]);
+
+        if (env->vmread_output.vmcs_encoding > 0){
+            tcg_gen_ld_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, vmread_output.vmread_field));
+            gen_ldst_modrm(env, s, modrm, MO_32, OR_TMP0, 1);
+            //env, s, modrm, MO_32, OR_TMP0, 1
+        }
+        set_cc_op(s, CC_OP_EFLAGS);
         break;    
     case 0x179: // vmwrite 
 
@@ -7831,6 +7844,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
 
         gen_ldst_modrm(env, s, modrm, ot, OR_TMP0, 0);
         gen_helper_vtx_vmwrite(cpu_env, cpu_regs[reg], cpu_T[0]);
+        set_cc_op(s, CC_OP_EFLAGS);
         break;
     default:
         goto illegal_op;
@@ -7843,7 +7857,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
     if (s->prefix & PREFIX_LOCK)
         gen_helper_unlock();
     /* XXX: ensure that no lock was generated */
-    printf("Illegal Operation with b=%x\n",b);
     gen_exception(s, EXCP06_ILLOP, pc_start - s->cs_base);
     return s->pc;
 }
