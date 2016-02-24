@@ -863,7 +863,68 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 
 }
 
-void helper_vtx_vmexit(CPUX86State * env){
+void vmx_check_intercept(CPUX86State * env, uint16_t basic_reason){
+
+	if (env->vmx_operation != VMX_NON_ROOT_OPERATION)
+		return;
+
+	struct vmcs_vmexit_information_fields fields;
+	memset(&fields, 0, sizeof(fields));
+
+	fields.exit_reason.basic_reason = basic_reason;
+
+	vtx_vmexit(env, &fields);
+
+}
+
+void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags){
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
+	uint32_t vmexit_controls = vmcs->vmcs_vmexit_control_fields.vmexit_controls;
+	
+	/* 27.2 record exit info */
+	// TODO: some other stuff in 27.2
+	memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(fields));
+
+	/* save guest state */
+
+	g->cr0 = env->cr[0];
+	g->cr3 = env->cr[3];
+	g->cr4 = env->cr[4];
+	g->msr_sysenter_cs = env->sysenter_cs;
+	g->msr_ia32_sysenter_esp = env->sysenter_esp;
+	g->msr_ia32_sysenter_eip = env->sysenter_eip;
+
+	if (ISSET(vmexit_controls, VM_EXIT_SAVE_DEBUG_CONTROLS)){
+		g->dr7 = env->dr[7];
+		g->msr_ia32_debugctl = env->msr_ia32_debugctl;
+	}
+
+
+	if (ISSET(vmexit_controls, VM_EXIT_SAVE_PAT)){
+		g->msr_ia32_pat = env->pat;
+	}
+
+	if (ISSET(vmexit_controls, VM_EXIT_SAVE_EFER)){
+		g->msr_ia32_efer = env->efer;
+	}
+
+	// save segments
+	g->eip = eip;
+	g->esp = env->regs[R_ESP];
+	g->eflags = eflags;
+
+	g->activity_state = ACTIVITY_STATE_ACTIVE; // TODO
+	g->interruptibility_state = INTERRUPTIBILITY_STIBLOCK; // TODO
+
+	// TODO: pending debug exceptions
+
+	if (ISSET(vmexit_controls, VM_EXIT_SAVE_PREEMPT_TIMER)){
+		g->vmx_preemption_timer = 0xFFFFFFFF; // todo
+	}
+
+	// TODO: EPT stuff
 
 	if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
 		LOG("VMEXIT -- spinning forever")
