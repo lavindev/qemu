@@ -29,6 +29,9 @@
 	#define LOG(x)
 #endif
 
+void vmx_check_intercept(CPUX86State * env, uint32_t basic_reason);
+static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags);
+
 // copies vmcs from guest physicall addr (arg below) to processor vmcs
 // need to tediously copy each field due to endianness
 // static void load_vmcs_proc(hwaddr addr){
@@ -863,7 +866,7 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 
 }
 
-void vmx_check_intercept(CPUX86State * env, uint16_t basic_reason){
+void vmx_check_intercept(CPUX86State * env, uint32_t basic_reason){
 
 	if (env->vmx_operation != VMX_NON_ROOT_OPERATION)
 		return;
@@ -871,13 +874,13 @@ void vmx_check_intercept(CPUX86State * env, uint16_t basic_reason){
 	struct vmcs_vmexit_information_fields fields;
 	memset(&fields, 0, sizeof(struct vmcs_vmexit_information_fields));
 
-	fields.exit_reason.basic_reason = basic_reason;
+	fields.exit_reason.basic_reason = (uint16_t) basic_reason;
 
-	vtx_vmexit(env, &fields);
+	vtx_vmexit(env, &fields, 0, 0);
 
 }
 
-void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags){
+static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags){
 
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
 	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
@@ -918,7 +921,7 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 	g->ds.selector = (uint16_t) env->segs[R_DS].selector;
 	g->fs.selector = (uint16_t) env->segs[R_FS].selector;
 	g->gs.selector = (uint16_t) env->segs[R_GS].selector;
-	g->ldtr.selector = (uint16_t) env->ldtr.selector;
+	g->ldtr.selector = (uint16_t) env->ldt.selector;
 	g->tr.selector = (uint16_t) env->tr.selector;
 
 	#define SAVE_EXIT_ACCESS_RIGHTS(ar, flags) do {ar = flags; ar &= 0x0000F0FF;} while (0)
@@ -942,8 +945,8 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 		SAVE_EXIT_ACCESS_RIGHTS(g->cs.access_rights_val, env->segs[R_CS].flags);
 	}
 	g->cs.access_rights.avl = likely(env->segs[R_CS].flags & (1UL << 12));
-	g->cs.db = likely(env->segs[R_CS].flags & (1UL << 14));
-	g->cs.granularity = likely(env->segs[R_CS].flags & (1UL << 15));
+	g->cs.access_rights.db = likely(env->segs[R_CS].flags & (1UL << 14));
+	g->cs.access_rights.granularity = likely(env->segs[R_CS].flags & (1UL << 15));
 
 	g->ss.access_rights_val = 0;
 	if (ISSET(env->segs[R_SS].flags, 1UL << 16)){
@@ -977,13 +980,13 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 	g->fs.base_addr = env->segs[R_FS].base;
 
 	g->ldtr.access_rights_val = 0;
-	if (ISSET(env->ldtr.flags, 1UL << 16)){
+	if (ISSET(env->ldt.flags, 1UL << 16)){
 		g->ldtr.access_rights.unusable = 1;
 	} else {
-		g->ldtr.segment_limit = env->ldtr.limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->ldtr.access_rights_val, env->ldtr.flags);
+		g->ldtr.segment_limit = env->ldt.limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->ldtr.access_rights_val, env->ldt.flags);
 	}
-	g->ldtr.base_addr = env->ldtr.base;
+	g->ldtr.base_addr = env->ldt.base;
 
 	g->gs.access_rights_val = 0;
 	if (ISSET(env->segs[R_GS].flags, 1UL << 16)){
@@ -1047,9 +1050,94 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 
 	// more 64 bit stuff
 
+	if (ISSET(vmexit_controls, VM_EXIT_LD_PERF_GLOB)){
+		env->msr_global_ctrl = h->msr_ia32_perf_global_ctrl;
+		// TODO: ensure reserved bits
+	}
+
+	if (ISSET(vmexit_controls, VM_EXIT_LOAD_PAT)){
+		env->pat = h->msr_ia32_pat;
+		// TODO: ensure reserved bits
+	}
+
+	if (ISSET(vmexit_controls, VM_EXIT_LOAD_EFER)){
+		env->efer = h->msr_ia32_efer;
+		// TODO: ensure reserved bits
+	}
+
+	// TODO: something about MSRs overwritten
+
+	// load segment registers
+
+	// TODO: 64 bit stuff
+
+	env->segs[R_CS].selector = h->cs_selector;
+	env->segs[R_CS].base = 0x0;
+	env->segs[R_CS].limit = 0xFFFFFFFF;
+	env->segs[R_CS].flags = 0xB | 0x10 | 0x80 | 0x8000;
+	if (!ISSET(vmexit_controls, VM_EXIT_HOST_ADDR_SPACE_SIZE)){
+		env->segs[R_CS].flags |= 0x4000;
+	}
+
+	env->segs[R_SS].selector = h->ss_selector;
+	// TODO: 64 bit stuff, unusable if 0
+	env->segs[R_SS].base = 0x0;
+	env->segs[R_SS].limit = 0xFFFFFFFF;
+	env->segs[R_SS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+
+	env->segs[R_DS].selector = h->ds_selector;
+	if (h->ds_selector != 0){
+		env->segs[R_DS].base = 0x0;
+		env->segs[R_DS].limit = 0xFFFFFFFF;
+		env->segs[R_DS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+	}
+
+	env->segs[R_ES].selector = h->es_selector;
+	if (h->es_selector != 0){
+		env->segs[R_ES].base = 0x0;
+		env->segs[R_ES].limit = 0xFFFFFFFF;
+		env->segs[R_ES].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+	}
+
+	env->segs[R_FS].selector = h->fs_selector;
+	if (h->fs_selector != 0){
+		env->segs[R_FS].base = h->fs_base_addr;
+		// more TODO 64 bit stuff
+		env->segs[R_FS].limit = 0xFFFFFFFF;
+		env->segs[R_FS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+	}
+
+	env->segs[R_GS].selector = h->gs_selector;
+	if (h->gs_selector != 0){
+		env->segs[R_GS].base = h->gs_base_addr;
+		// more TODO 64 bit stuff
+		env->segs[R_GS].limit = 0xFFFFFFFF;
+		env->segs[R_GS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+	}
+
+	env->tr.selector = h->tr_selector;
+	env->tr.base = h->tr_base_addr;
+	env->tr.limit = 0x00000067;
+	env->tr.flags = 0xB | 0x80;
+
+	env->ldt.selector = 0x0;
+	env->ldt.flags |= (1UL << 16); // mark unusable
+
+	env->gdt.base = h->gdtr_base_addr;
+	env->gdt.limit = 0xFFFF;
+	env->idt.base = h->idtr_base_addr;
+	env->idt.limit = 0xFFFF;
+	// TODO: more 64 bit stuff
+
+	// load eip, esp, eflags
+	env->eip = h->eip;
+	env->regs[R_ESP] = h->esp;
+	env->eflags = 0x1;
+
+	// paging stuff, might be important TDOD
 
 
-	clear_address_range_monitoring();
+	clear_address_range_monitoring(env);
 
 
 
