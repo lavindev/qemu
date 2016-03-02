@@ -463,11 +463,11 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		}
 
 		// GDT, IDT
-		// env->gdt.base = g->gdtr.base_addr;
-		// env->gdt.limit = g->gdtr.limit;
+		env->gdt.base = g->gdtr.base_addr;
+		env->gdt.limit = g->gdtr.limit;
 
-		// env->idt.base = g->idtr.base_addr;
-		// env->idt.limit = g->idtr.limit;
+		env->idt.base = g->idtr.base_addr;
+		env->idt.limit = g->idtr.limit;
 	//} 
 
 	/* Loading Guest RIP, RSP, and RFLAGS */
@@ -869,7 +869,7 @@ void vmx_check_intercept(CPUX86State * env, uint16_t basic_reason){
 		return;
 
 	struct vmcs_vmexit_information_fields fields;
-	memset(&fields, 0, sizeof(fields));
+	memset(&fields, 0, sizeof(struct vmcs_vmexit_information_fields));
 
 	fields.exit_reason.basic_reason = basic_reason;
 
@@ -881,11 +881,12 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
 	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
+	struct vmcs_host_state_area * h = &(vmcs->vmcs_host_state_area);
 	uint32_t vmexit_controls = vmcs->vmcs_vmexit_control_fields.vmexit_controls;
 	
 	/* 27.2 record exit info */
 	// TODO: some other stuff in 27.2
-	memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(fields));
+	memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(struct vmcs_vmexit_information_fields));
 
 	/* save guest state */
 
@@ -911,6 +912,104 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 	}
 
 	// save segments
+	g->es.selector = (uint16_t) env->segs[R_ES].selector;
+	g->cs.selector = (uint16_t) env->segs[R_CS].selector;
+	g->ss.selector = (uint16_t) env->segs[R_SS].selector;
+	g->ds.selector = (uint16_t) env->segs[R_DS].selector;
+	g->fs.selector = (uint16_t) env->segs[R_FS].selector;
+	g->gs.selector = (uint16_t) env->segs[R_GS].selector;
+	g->ldtr.selector = (uint16_t) env->ldtr.selector;
+	g->tr.selector = (uint16_t) env->tr.selector;
+
+	#define SAVE_EXIT_ACCESS_RIGHTS(ar, flags) do {ar = flags; ar &= 0x0000F0FF;} while (0)
+
+	g->es.access_rights_val = 0;
+	if (ISSET(env->segs[R_ES].flags, 1UL << 16)){
+		g->es.access_rights.unusable = 1;
+	} else {
+		g->es.base_addr = env->segs[R_ES].base;
+		g->es.segment_limit = env->segs[R_ES].limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->es.access_rights_val, env->segs[R_ES].flags);
+	}
+	// 64 bit stuff
+
+	g->cs.access_rights_val = 0;
+	g->cs.base_addr = env->segs[R_CS].base;
+	g->cs.segment_limit = env->segs[R_CS].limit;
+	if (ISSET(env->segs[R_CS].flags, 1UL << 16)){
+		g->cs.access_rights.unusable = 1;
+	} else {
+		SAVE_EXIT_ACCESS_RIGHTS(g->cs.access_rights_val, env->segs[R_CS].flags);
+	}
+	g->cs.access_rights.avl = likely(env->segs[R_CS].flags & (1UL << 12));
+	g->cs.db = likely(env->segs[R_CS].flags & (1UL << 14));
+	g->cs.granularity = likely(env->segs[R_CS].flags & (1UL << 15));
+
+	g->ss.access_rights_val = 0;
+	if (ISSET(env->segs[R_SS].flags, 1UL << 16)){
+		g->ss.access_rights.unusable = 1;
+	} else {
+		g->ss.base_addr = env->segs[R_SS].base;
+		g->ss.segment_limit = env->segs[R_SS].limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->ss.access_rights_val, env->segs[R_SS].flags);
+	}
+	g->ss.access_rights.dpl = (env->segs[R_SS].flags & 0x60) >> 5;
+	// 64 bit stuff
+
+
+	g->ds.access_rights_val = 0;
+	if (ISSET(env->segs[R_DS].flags, 1UL << 16)){
+		g->ds.access_rights.unusable = 1;
+	} else {
+		g->ds.base_addr = env->segs[R_DS].base;
+		g->ds.segment_limit = env->segs[R_DS].limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->ds.access_rights_val, env->segs[R_DS].flags);
+	}
+	// 64 bit stuff
+
+	g->fs.access_rights_val = 0;
+	if (ISSET(env->segs[R_FS].flags, 1UL << 16)){
+		g->fs.access_rights.unusable = 1;
+	} else {
+		g->fs.segment_limit = env->segs[R_FS].limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->fs.access_rights_val, env->segs[R_FS].flags);
+	}
+	g->fs.base_addr = env->segs[R_FS].base;
+
+	g->ldtr.access_rights_val = 0;
+	if (ISSET(env->ldtr.flags, 1UL << 16)){
+		g->ldtr.access_rights.unusable = 1;
+	} else {
+		g->ldtr.segment_limit = env->ldtr.limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->ldtr.access_rights_val, env->ldtr.flags);
+	}
+	g->ldtr.base_addr = env->ldtr.base;
+
+	g->gs.access_rights_val = 0;
+	if (ISSET(env->segs[R_GS].flags, 1UL << 16)){
+		g->gs.access_rights.unusable = 1;
+	} else {
+		g->gs.segment_limit = env->segs[R_GS].limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->gs.access_rights_val, env->segs[R_GS].flags);
+	}
+	g->gs.base_addr = env->segs[R_GS].base;
+
+	g->tr.access_rights_val = 0;
+	if (ISSET(env->tr.flags, 1UL << 16)){
+		g->tr.access_rights.unusable = 1;
+	} else {
+		g->tr.base_addr = env->tr.base;
+		g->tr.segment_limit = env->tr.limit;
+		SAVE_EXIT_ACCESS_RIGHTS(g->tr.access_rights_val, env->tr.flags);
+	}
+
+	g->gdtr.base_addr = env->gdt.base;
+	g->gdtr.limit = env->gdt.limit;
+
+	g->idtr.base_addr = env->idt.base;
+	g->idtr.limit = env->idt.limit;
+
+	// save eip, eflags and esp
 	g->eip = eip;
 	g->esp = env->regs[R_ESP];
 	g->eflags = eflags;
@@ -925,6 +1024,38 @@ void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * field
 	}
 
 	// TODO: EPT stuff
+
+	// TODO: MSRs? Gotta save em in vmlaunch first
+
+	// Load host state
+	uint32_t reserved_mask = 0x7FFAFFD0;
+	target_ulong new_crN = (env->cr[0] & reserved_mask);
+	new_crN |= (h->cr0 & ~reserved_mask);
+	cpu_x86_update_cr0(env, new_crN);
+	
+	cpu_x86_update_cr3(env, h->cr3);
+	cpu_x86_update_cr4(env, h->cr4);
+	// more modifications to cr3 c4 TODO
+
+	env->dr[7] = 0x400;
+
+	env->msr_ia32_debugctl = 0;
+	env->sysenter_cs = h->msr_sysenter_cs;
+	env->sysenter_esp = h->msr_ia32_sysenter_esp;
+	env->sysenter_eip = h->msr_ia32_sysenter_eip;
+	// some 64 but stuff
+
+	// more 64 bit stuff
+
+
+
+	clear_address_range_monitoring();
+
+
+
+
+
+
 
 	if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
 		LOG("VMEXIT -- spinning forever")
