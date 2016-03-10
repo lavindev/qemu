@@ -7109,9 +7109,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         break;
 #endif
     case 0x1a2: /* cpuid */
-
-        gen_helper_vtx_vmexit(cpu_env);
-
         gen_update_cc_op(s);
         gen_jmp_im(pc_start - s->cs_base);
         gen_helper_cpuid(cpu_env);

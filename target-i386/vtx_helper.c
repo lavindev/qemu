@@ -29,7 +29,7 @@
 	#define LOG(x)
 #endif
 
-void vmx_check_intercept(CPUX86State * env, uint32_t basic_reason);
+
 static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags);
 
 // copies vmcs from guest physicall addr (arg below) to processor vmcs
@@ -866,7 +866,9 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 
 }
 
-void vmx_check_intercept(CPUX86State * env, uint32_t basic_reason){
+void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags){
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
 
 	if (env->vmx_operation != VMX_NON_ROOT_OPERATION)
 		return;
@@ -876,8 +878,14 @@ void vmx_check_intercept(CPUX86State * env, uint32_t basic_reason){
 
 	fields.exit_reason.basic_reason = (uint16_t) basic_reason;
 
-	vtx_vmexit(env, &fields, 0, 0);
+	vtx_vmexit(env, &fields, next_eip, eflags);
 
+	/* remove any pending exception */
+    cs->exception_index = -1;
+    env->error_code = 0;
+    env->old_exception = -1;
+
+	cpu_loop_exit(cs);
 }
 
 static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags){
@@ -1016,6 +1024,8 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	g->eip = eip;
 	g->esp = env->regs[R_ESP];
 	g->eflags = eflags;
+	cpu_load_eflags(env, 0x1, ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK |
+                      VM_MASK));
 
 	g->activity_state = ACTIVITY_STATE_ACTIVE; // TODO
 	g->interruptibility_state = INTERRUPTIBILITY_STIBLOCK; // TODO
@@ -1046,7 +1056,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	env->sysenter_cs = h->msr_sysenter_cs;
 	env->sysenter_esp = h->msr_ia32_sysenter_esp;
 	env->sysenter_eip = h->msr_ia32_sysenter_eip;
-	// some 64 but stuff
+	// some 64 bit stuff
 
 	// more 64 bit stuff
 
@@ -1061,8 +1071,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	}
 
 	if (ISSET(vmexit_controls, VM_EXIT_LOAD_EFER)){
-		env->efer = h->msr_ia32_efer;
-		// TODO: ensure reserved bits
+		cpu_load_efer(env, h->msr_ia32_efer);
 	}
 
 	// TODO: something about MSRs overwritten
@@ -1074,54 +1083,86 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	env->segs[R_CS].selector = h->cs_selector;
 	env->segs[R_CS].base = 0x0;
 	env->segs[R_CS].limit = 0xFFFFFFFF;
-	env->segs[R_CS].flags = 0xB | 0x10 | 0x80 | 0x8000;
+	env->segs[R_CS].flags = (0xB << DESC_TYPE_SHIFT) | DESC_S_MASK | DESC_P_MASK | DESC_G_MASK;
 	if (!ISSET(vmexit_controls, VM_EXIT_HOST_ADDR_SPACE_SIZE)){
-		env->segs[R_CS].flags |= 0x4000;
+		env->segs[R_CS].flags |= DESC_B_MASK;
 	}
+
+	cpu_x86_load_seg_cache(env, R_CS, 
+						   env->segs[R_CS].selector, 
+						   env->segs[R_CS].base,
+						   env->segs[R_CS].limit,
+						   env->segs[R_CS].flags);
 
 	env->segs[R_SS].selector = h->ss_selector;
 	// TODO: 64 bit stuff, unusable if 0
 	env->segs[R_SS].base = 0x0;
 	env->segs[R_SS].limit = 0xFFFFFFFF;
-	env->segs[R_SS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+	env->segs[R_SS].flags = (0x3 << DESC_TYPE_SHIFT) | DESC_S_MASK | DESC_P_MASK | DESC_B_MASK | DESC_G_MASK;
+	cpu_x86_load_seg_cache(env, R_SS, 
+						   env->segs[R_SS].selector, 
+						   env->segs[R_SS].base,
+						   env->segs[R_SS].limit,
+						   env->segs[R_SS].flags);
 
 	env->segs[R_DS].selector = h->ds_selector;
 	if (h->ds_selector != 0){
 		env->segs[R_DS].base = 0x0;
 		env->segs[R_DS].limit = 0xFFFFFFFF;
-		env->segs[R_DS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+		env->segs[R_DS].flags = (0x3 << DESC_TYPE_SHIFT) | DESC_S_MASK | DESC_P_MASK | DESC_B_MASK | DESC_G_MASK;
 	}
+	cpu_x86_load_seg_cache(env, R_DS, 
+						   env->segs[R_DS].selector, 
+						   env->segs[R_DS].base,
+						   env->segs[R_DS].limit,
+						   env->segs[R_DS].flags);
 
 	env->segs[R_ES].selector = h->es_selector;
 	if (h->es_selector != 0){
 		env->segs[R_ES].base = 0x0;
 		env->segs[R_ES].limit = 0xFFFFFFFF;
-		env->segs[R_ES].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+		env->segs[R_ES].flags = (0x3 << DESC_TYPE_SHIFT) | DESC_S_MASK | DESC_P_MASK | DESC_B_MASK | DESC_G_MASK;
 	}
+	cpu_x86_load_seg_cache(env, R_ES, 
+						   env->segs[R_ES].selector, 
+						   env->segs[R_ES].base,
+						   env->segs[R_ES].limit,
+						   env->segs[R_ES].flags);
 
 	env->segs[R_FS].selector = h->fs_selector;
 	if (h->fs_selector != 0){
 		env->segs[R_FS].base = h->fs_base_addr;
 		// more TODO 64 bit stuff
 		env->segs[R_FS].limit = 0xFFFFFFFF;
-		env->segs[R_FS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+		env->segs[R_FS].flags = (0x3 << DESC_TYPE_SHIFT) | DESC_S_MASK | DESC_P_MASK | DESC_B_MASK | DESC_G_MASK;
 	}
+	cpu_x86_load_seg_cache(env, R_FS, 
+						   env->segs[R_FS].selector, 
+						   env->segs[R_FS].base,
+						   env->segs[R_FS].limit,
+						   env->segs[R_FS].flags);
 
 	env->segs[R_GS].selector = h->gs_selector;
 	if (h->gs_selector != 0){
 		env->segs[R_GS].base = h->gs_base_addr;
 		// more TODO 64 bit stuff
 		env->segs[R_GS].limit = 0xFFFFFFFF;
-		env->segs[R_GS].flags = 0x3 | 0x10 | 0x80 | 0x4000 | 0x8000;
+		env->segs[R_GS].flags = (0x3 << DESC_TYPE_SHIFT) | DESC_S_MASK | DESC_P_MASK | DESC_B_MASK | DESC_G_MASK;
 	}
+	cpu_x86_load_seg_cache(env, R_GS, 
+						   env->segs[R_GS].selector, 
+						   env->segs[R_GS].base,
+						   env->segs[R_GS].limit,
+						   env->segs[R_GS].flags);
 
 	env->tr.selector = h->tr_selector;
 	env->tr.base = h->tr_base_addr;
 	env->tr.limit = 0x00000067;
-	env->tr.flags = 0xB | 0x80;
+	env->tr.flags = (0xB << DESC_TYPE_SHIFT) | DESC_P_MASK;
 
 	env->ldt.selector = 0x0;
-	env->ldt.flags |= (1UL << 16); // mark unusable
+	// remedy this to unsuable
+	//env->ldt.flags |= (1UL << 16); // mark unusable
 
 	env->gdt.base = h->gdtr_base_addr;
 	env->gdt.limit = 0xFFFF;
@@ -1140,21 +1181,16 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	clear_address_range_monitoring(env);
 
 
+	// this was skipped in the manual, but might be importatn
+	env->vmx_operation = VMX_ROOT_OPERATION;
 
-
-
-
-
-	if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-		LOG("VMEXIT -- spinning forever")
-		while(1);
-	}
+	LOG_EXIT
 
 }
 
 
 void helper_vtx_vmresume(CPUX86State * env){
-		
+
 	// int cpl = env->segs[R_CS].selector & 0x3;
 
 	// vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);

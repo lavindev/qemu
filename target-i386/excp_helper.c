@@ -93,6 +93,7 @@ static void QEMU_NORETURN raise_interrupt2(CPUX86State *env, int intno,
         cpu_svm_check_intercept_param(env, SVM_EXIT_EXCP_BASE + intno,
                                       error_code);
         intno = check_exception(env, intno, &error_code);
+        cpu_vmx_check_intercept(env, 0, next_eip_addend, 0);
     } else {
         cpu_svm_check_intercept_param(env, SVM_EXIT_SWINT, 0);
     }
@@ -115,22 +116,25 @@ void QEMU_NORETURN raise_interrupt(CPUX86State *env, int intno, int is_int,
 void raise_exception_err(CPUX86State *env, int exception_index,
                          int error_code)
 {
-    if (exception_index == 13) printf("ECXEption err=%d\n", error_code);
+    if (env->vmx_operation == VMX_NON_ROOT_OPERATION) printf("Exception %d err=%d\n", exception_index, error_code);
     raise_interrupt2(env, exception_index, 0, error_code, 0, 0);
 }
 
 void raise_exception_err_ra(CPUX86State *env, int exception_index,
                             int error_code, uintptr_t retaddr)
 {
+    if (env->vmx_operation == VMX_NON_ROOT_OPERATION) printf("Exception %d err=%d\n", exception_index, error_code);
     raise_interrupt2(env, exception_index, 0, error_code, 0, retaddr);
 }
 
 void raise_exception(CPUX86State *env, int exception_index)
 {
+    if (env->vmx_operation == VMX_NON_ROOT_OPERATION) printf("Exception %d\n", exception_index);
     raise_interrupt2(env, exception_index, 0, 0, 0, 0);
 }
 
 void raise_exception_ra(CPUX86State *env, int exception_index, uintptr_t retaddr)
 {
+    if (env->vmx_operation == VMX_NON_ROOT_OPERATION) printf("Exception %d\n", exception_index);
     raise_interrupt2(env, exception_index, 0, 0, 0, retaddr);
 }

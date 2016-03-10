@@ -1313,6 +1313,7 @@ void optimize_flags_init(void);
 
 #include "exec/cpu-all.h"
 #include "svm.h"
+#include "vtx.h"
 
 #if !defined(CONFIG_USER_ONLY)
 #include "hw/i386/apic.h"
@@ -1412,6 +1413,9 @@ void do_smm_enter(X86CPU *cpu);
 void cpu_smm_update(X86CPU *cpu);
 
 void cpu_report_tpr_access(CPUX86State *env, TPRAccess access);
+
+/* vtx_helper.c */
+void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags);
 
 /* Change the value of a KVM-specific default
  *
