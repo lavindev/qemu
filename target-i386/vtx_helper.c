@@ -21,7 +21,7 @@
 #define DEBUG
 #if defined (DEBUG)
 	#define LOG_ENTRY do { printf("ENTRY: %s\n", __FUNCTION__); } while (0);
-	#define LOG_EXIT do { printf("EXIT: %s\n", __FUNCTION__); } while (0);
+	#define LOG_EXIT do {  printf("EXIT: %s\n", __FUNCTION__);  } while (0);
 	#define LOG(x) do { printf("VTX LOG: %s, File: %s, Line: %d\n", x, __FILE__, __LINE__); } while(0);
 #else
 	#define LOG_ENTRY
@@ -391,14 +391,20 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (g->ldtr.access_rights.unusable) raise_exception(env, EXCP0D_GPF);
 
 		#define LOAD_ACCESS_RIGHTS(flags, access_rights) do {	\
-			flags = access_rights; 								\
+			flags = access_rights.segment_type << DESC_TYPE_SHIFT; 	\
+			flags |= access_rights.descriptor_type << 12; 	\
+			flags |= access_rights.dpl << DESC_DPL_SHIFT; 	\
+			flags |= access_rights.segment_present << 15; 	\
+			flags |= access_rights.avl << 20; 	\
+			flags |= access_rights.db << DESC_B_SHIFT; 	\
+			flags |= access_rights.granularity << 23; 	\
 		} while(0)	
 
 		// load tr
 		env->tr.selector = g->tr.selector;
 		env->tr.base = g->tr.base_addr;
 		env->tr.limit = g->tr.segment_limit;
-		LOAD_ACCESS_RIGHTS(env->tr.flags, g->tr.access_rights_val);
+		LOAD_ACCESS_RIGHTS(env->tr.flags, g->tr.access_rights);
 
 		// load cs
 		if (g->cs.access_rights.unusable){
@@ -407,7 +413,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 			// NOTE: 64 bit needs L flag below
 			env->segs[R_CS].flags |= (g->cs.access_rights.db << DESC_B_SHIFT) | (g->cs.access_rights.granularity << 23);
 		} else {
-			LOAD_ACCESS_RIGHTS(env->segs[R_CS].flags, g->cs.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->segs[R_CS].flags, g->cs.access_rights);
 		}
 		cpu_x86_load_seg_cache(env, R_CS, g->cs.selector, g->cs.base_addr, g->cs.segment_limit, env->segs[R_CS].flags);
 
@@ -420,7 +426,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 			env->segs[R_SS].flags |= (DESC_B_MASK);
 			cpu_x86_load_seg_cache(env, R_SS, g->ss.selector, env->segs[R_SS].base, g->cs.segment_limit, env->segs[R_SS].flags);
 		} else {
-			LOAD_ACCESS_RIGHTS(env->segs[R_SS].flags, g->ss.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->segs[R_SS].flags, g->ss.access_rights);
 			cpu_x86_load_seg_cache(env, R_SS, g->ss.selector, g->ss.base_addr, g->ss.segment_limit, env->segs[R_SS].flags);
 		}
 
@@ -428,7 +434,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (!g->ds.access_rights.unusable){
 			env->segs[R_DS].base = g->ds.base_addr;
 			env->segs[R_DS].limit = g->ds.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_DS].flags, g->ds.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->segs[R_DS].flags, g->ds.access_rights);
 		}
 		cpu_x86_load_seg_cache(env, R_DS, env->segs[R_DS].selector, env->segs[R_DS].base, env->segs[R_DS].limit, env->segs[R_DS].flags);
 
@@ -436,7 +442,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (!g->es.access_rights.unusable){
 			env->segs[R_ES].base = g->es.base_addr;
 			env->segs[R_ES].limit = g->es.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_ES].flags, g->es.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->segs[R_ES].flags, g->es.access_rights);
 		}
 		cpu_x86_load_seg_cache(env, R_ES, env->segs[R_ES].selector, env->segs[R_ES].base, env->segs[R_ES].limit, env->segs[R_ES].flags);
 
@@ -444,7 +450,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		env->segs[R_FS].base = g->fs.base_addr;
 		if (!g->fs.access_rights.unusable){
 			env->segs[R_FS].limit = g->fs.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_FS].flags, g->fs.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->segs[R_FS].flags, g->fs.access_rights);
 			// some 64 bit stuff
 		}
 		cpu_x86_load_seg_cache(env, R_FS, env->segs[R_FS].selector, env->segs[R_FS].base, env->segs[R_FS].limit, env->segs[R_FS].flags);
@@ -453,7 +459,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		env->segs[R_GS].base = g->gs.base_addr;
 		if (!g->gs.access_rights.unusable){
 			env->segs[R_GS].limit = g->gs.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->segs[R_GS].flags, g->gs.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->segs[R_GS].flags, g->gs.access_rights);
 			// some 64 bit stuff
 		}
 		cpu_x86_load_seg_cache(env, R_GS, env->segs[R_GS].selector, env->segs[R_GS].base, env->segs[R_GS].limit, env->segs[R_GS].flags);
@@ -462,7 +468,7 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 		if (!g->ldtr.access_rights.unusable){
 			env->ldt.base = g->ldtr.base_addr;
 			env->ldt.limit = g->ldtr.segment_limit;
-			LOAD_ACCESS_RIGHTS(env->ldt.flags, g->ldtr.access_rights_val);
+			LOAD_ACCESS_RIGHTS(env->ldt.flags, g->ldtr.access_rights);
 		}
 
 		// GDT, IDT
@@ -623,6 +629,7 @@ void helper_vtx_vmxoff(CPUX86State * env){
 		env->processor_vmcs = NULL;
 	}
 
+
 	LOG_EXIT
 }
 
@@ -670,6 +677,8 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 			}
 		}
 	}
+
+	LOG_EXIT
 
 }
 
@@ -774,6 +783,7 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 			vm_exception(SUCCEED, 0, env);
 		}
 	}
+
 
 	LOG_EXIT
 
@@ -885,6 +895,8 @@ void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ul
     env->error_code = 0;
     env->old_exception = -1;
 
+  
+
 	cpu_loop_exit(cs);
 }
 
@@ -932,7 +944,19 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	g->ldtr.selector = (uint16_t) env->ldt.selector;
 	g->tr.selector = (uint16_t) env->tr.selector;
 
-	#define SAVE_EXIT_ACCESS_RIGHTS(ar, flags) do {ar = flags; ar &= 0x0000F0FF;} while (0)
+	#define SAVE_EXIT_ACCESS_RIGHTS(ar, flags) do { 	\
+		ar.segment_type = (flags & DESC_TYPE_MASK) >> DESC_TYPE_SHIFT;	\
+		ar.descriptor_type = (flags & DESC_S_MASK) >> 12;				\
+		ar.dpl = (flags & DESC_DPL_MASK) >> DESC_DPL_SHIFT;				\
+		ar.segment_present = (flags & DESC_P_MASK) >> 15;				\
+		ar.reserved0 = 0;												\
+		ar.avl = (flags & DESC_AVL_MASK) >> 20;							\
+		ar.reserved1 = 0;												\
+		ar.db = (flags & DESC_B_MASK) >> DESC_B_SHIFT; 					\
+		ar.granularity = (flags & DESC_G_MASK) >> 23;					\
+		ar.unusable = 0;												\
+		ar.reserved2 = 0;												\
+	} while (0)
 
 	g->es.access_rights_val = 0;
 	if (ISSET(env->segs[R_ES].flags, 1UL << 16)){
@@ -940,7 +964,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	} else {
 		g->es.base_addr = env->segs[R_ES].base;
 		g->es.segment_limit = env->segs[R_ES].limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->es.access_rights_val, env->segs[R_ES].flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->es.access_rights, env->segs[R_ES].flags);
 	}
 	// 64 bit stuff
 
@@ -950,11 +974,11 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	if (ISSET(env->segs[R_CS].flags, 1UL << 16)){
 		g->cs.access_rights.unusable = 1;
 	} else {
-		SAVE_EXIT_ACCESS_RIGHTS(g->cs.access_rights_val, env->segs[R_CS].flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->cs.access_rights, env->segs[R_CS].flags);
 	}
-	g->cs.access_rights.avl = likely(env->segs[R_CS].flags & (1UL << 12));
-	g->cs.access_rights.db = likely(env->segs[R_CS].flags & (1UL << 14));
-	g->cs.access_rights.granularity = likely(env->segs[R_CS].flags & (1UL << 15));
+	g->cs.access_rights.avl = likely(env->segs[R_CS].flags & (1UL << 20));
+	g->cs.access_rights.db = likely(env->segs[R_CS].flags & (1UL << DESC_B_SHIFT));
+	g->cs.access_rights.granularity = likely(env->segs[R_CS].flags & (1UL << 23));
 
 	g->ss.access_rights_val = 0;
 	if (ISSET(env->segs[R_SS].flags, 1UL << 16)){
@@ -962,9 +986,9 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	} else {
 		g->ss.base_addr = env->segs[R_SS].base;
 		g->ss.segment_limit = env->segs[R_SS].limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->ss.access_rights_val, env->segs[R_SS].flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->ss.access_rights, env->segs[R_SS].flags);
 	}
-	g->ss.access_rights.dpl = (env->segs[R_SS].flags & 0x60) >> 5;
+	g->ss.access_rights.dpl = (env->segs[R_SS].flags & DESC_DPL_MASK) >> DESC_DPL_SHIFT;
 	// 64 bit stuff
 
 
@@ -974,7 +998,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	} else {
 		g->ds.base_addr = env->segs[R_DS].base;
 		g->ds.segment_limit = env->segs[R_DS].limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->ds.access_rights_val, env->segs[R_DS].flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->ds.access_rights, env->segs[R_DS].flags);
 	}
 	// 64 bit stuff
 
@@ -983,7 +1007,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 		g->fs.access_rights.unusable = 1;
 	} else {
 		g->fs.segment_limit = env->segs[R_FS].limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->fs.access_rights_val, env->segs[R_FS].flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->fs.access_rights, env->segs[R_FS].flags);
 	}
 	g->fs.base_addr = env->segs[R_FS].base;
 
@@ -992,7 +1016,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 		g->ldtr.access_rights.unusable = 1;
 	} else {
 		g->ldtr.segment_limit = env->ldt.limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->ldtr.access_rights_val, env->ldt.flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->ldtr.access_rights, env->ldt.flags);
 	}
 	g->ldtr.base_addr = env->ldt.base;
 
@@ -1001,7 +1025,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 		g->gs.access_rights.unusable = 1;
 	} else {
 		g->gs.segment_limit = env->segs[R_GS].limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->gs.access_rights_val, env->segs[R_GS].flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->gs.access_rights, env->segs[R_GS].flags);
 	}
 	g->gs.base_addr = env->segs[R_GS].base;
 
@@ -1011,7 +1035,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	} else {
 		g->tr.base_addr = env->tr.base;
 		g->tr.segment_limit = env->tr.limit;
-		SAVE_EXIT_ACCESS_RIGHTS(g->tr.access_rights_val, env->tr.flags);
+		SAVE_EXIT_ACCESS_RIGHTS(g->tr.access_rights, env->tr.flags);
 	}
 
 	g->gdtr.base_addr = env->gdt.base;
@@ -1503,10 +1527,13 @@ static int32_t get_vmcs_offset_target(target_ulong vmcs_field_encoding, int32_t 
 		case 0x600E: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[3]);
 
 		case 0x6400: 
-			if (!is_write) 
+			if (!is_write) {
+				LOG("6400 - returning success")
 				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_qualification); 
-			else
+			} else {
+				LOG("6400 - failure")
 				return -2;
+			}
 		case 0x6402:
 			if (!is_write) 
 				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rcx); 
@@ -1578,6 +1605,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 
 	LOG_ENTRY
 
+
 	CPUState *cs = CPU(x86_env_get_cpu(env));
 	int cpl = env->segs[R_CS].selector & 0x3;
 
@@ -1590,6 +1618,8 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION /* AND shadow stuff */){
 		/* vm exit */
 	} else if (cpl > 0){
+		printf("CPL === ==== === %d\n", cpl);
+		LOG("GEN PROTECTION FAULT")
 		raise_exception(env, EXCP0D_GPF);
 	} else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs_ptr_register == VMCS_CLEAR_ADDRESS) or
 			   (env->vmx_operation == VMX_NON_ROOT_OPERATION /*and  vmcs link ptr */)){
@@ -1701,6 +1731,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, target_ulong data){
 
 	LOG_ENTRY
+
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
 	int cpl = env->segs[R_CS].selector & 0x3;

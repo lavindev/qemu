@@ -7192,6 +7192,7 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         rm = modrm & 7;
 
         /* vtx calls */
+        printf("modrm = %x\n", modrm);
         switch (modrm){
             case 0xc1: gen_helper_vtx_vmcall(cpu_env); break;
             case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
