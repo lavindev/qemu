@@ -7192,7 +7192,6 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         rm = modrm & 7;
 
         /* vtx calls */
-        printf("modrm = %x\n", modrm);
         switch (modrm){
             case 0xc1: gen_helper_vtx_vmcall(cpu_env); break;
             case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
@@ -7827,12 +7826,13 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
 
         gen_helper_vtx_vmread(cpu_env, cpu_T[0], cpu_regs[reg]);
 
-        if (env->vmread_output.vmcs_encoding > 0){
+        if ((int)(env->vmread_output.vmcs_encoding) >= 0){
+            printf("encoding: %d\n", env->vmread_output.vmcs_encoding);
             tcg_gen_ld_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, vmread_output.vmread_field));
             gen_ldst_modrm(env, s, modrm, MO_32, OR_TMP0, 1);
+            set_cc_op(s, CC_OP_EFLAGS);
             //env, s, modrm, MO_32, OR_TMP0, 1
         }
-        set_cc_op(s, CC_OP_EFLAGS);
         break;    
     case 0x179: // vmwrite 
 

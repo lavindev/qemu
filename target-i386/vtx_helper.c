@@ -1317,7 +1317,7 @@ static int32_t get_vmcs_offset16(target_ulong vmcs_field_encoding, int32_t is_wr
 		case 0xC06:return offsetof(vtx_vmcs_t, vmcs_host_state_area.ds_selector);
 		case 0xC08:return offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_selector);
 		case 0xC0A:return offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_selector);
-		case 0xC0D:return offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_selector);
+		case 0xC0C:return offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_selector);
 	
 		default:
 			return -1;
@@ -1636,6 +1636,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					offset = get_vmcs_offset16(vmcs_field_encoding, 0);
 					if (offset == -1){
 						LOG("offset = -1")
+						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
@@ -1652,6 +1653,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					offset = get_vmcs_offset64(vmcs_field_encoding, 0);
 					if (offset == -1){
 						LOG("offset = -1")
+						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
@@ -1673,6 +1675,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					offset = get_vmcs_offset32(vmcs_field_encoding, 0);
 					if (offset == -1){
 						LOG("offset = -1")
+						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
@@ -1689,6 +1692,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					offset = get_vmcs_offset_target(vmcs_field_encoding, 0);
 					if (offset == -1){
 						LOG("offset = -1")
+						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
@@ -1697,6 +1701,8 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					} else {
 						LOG("VMREAD working...")
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
+						printf("Got value %d\n", env->vmread_output.vmread_field);
+						printf("Setting Encoding to %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -1759,7 +1765,6 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 					offset = get_vmcs_offset16(vmcs_field_encoding, 1);
 					if (offset == -1){
 						LOG("offset = -1")
-					
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
 						LOG("offset = -2")
@@ -1776,7 +1781,6 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 					offset = get_vmcs_offset64(vmcs_field_encoding, 1);
 					if (offset == -1){
 						LOG("offset = -1")
-						
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
 						LOG("offset = -2")
@@ -1801,7 +1805,6 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 					offset = get_vmcs_offset32(vmcs_field_encoding, 1);
 					if (offset == -1){
 						LOG("offset = -1")
-						
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
 						LOG("offset = -2")
@@ -1819,7 +1822,6 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 					offset = get_vmcs_offset_target(vmcs_field_encoding, 1);
 					if (offset == -1){
 						LOG("offset = -1")
-						
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
 						LOG("offset = -2")
