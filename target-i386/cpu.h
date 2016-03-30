@@ -1415,7 +1415,7 @@ void cpu_smm_update(X86CPU *cpu);
 void cpu_report_tpr_access(CPUX86State *env, TPRAccess access);
 
 /* vtx_helper.c */
-void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags);
+void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags, int error_code);
 
 /* Change the value of a KVM-specific default
  *

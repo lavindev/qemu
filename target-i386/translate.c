@@ -3036,11 +3036,6 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     mod = (modrm >> 6) & 3;
     if (sse_fn_epp == SSE_SPECIAL) {
         b |= (b1 << 8);
-
-        if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-            printf("Executing b = %d in VMX_NON_ROOT_OPERATION\n", b);
-        }
-
         switch(b) {
         case 0x0e7: /* movntq */
             if (mod == 3)
@@ -7832,6 +7827,8 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             gen_ldst_modrm(env, s, modrm, MO_32, OR_TMP0, 1);
             set_cc_op(s, CC_OP_EFLAGS);
             //env, s, modrm, MO_32, OR_TMP0, 1
+        } else {
+            printf("BAD BAD BAD BAD\n");
         }
         break;    
     case 0x179: // vmwrite 

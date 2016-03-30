@@ -23,6 +23,7 @@
 	#define LOG_ENTRY do { printf("ENTRY: %s\n", __FUNCTION__); } while (0);
 	#define LOG_EXIT do {  printf("EXIT: %s\n", __FUNCTION__);  } while (0);
 	#define LOG(x) do { printf("VTX LOG: %s, File: %s, Line: %d\n", x, __FILE__, __LINE__); } while(0);
+	#define PRINT(x) do { printf("%s\n", #x); } while(0)
 #else
 	#define LOG_ENTRY
 	#define LOG_EXIT
@@ -43,6 +44,8 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 
 static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86State * env){
 
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+	struct vmcs_vmexit_information_fields * info = &(vmcs->vmcs_vmexit_information_fields);
 	/* TODO */
  	/* define error numbers, see 30.4 */
 	// Reference: 30.2 Conventions
@@ -51,12 +54,15 @@ static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86St
 		update_mask = CC_C | CC_P | CC_A | CC_S | CC_Z | CC_O;
 		cpu_load_eflags(env, 0, update_mask);
 	} else if (exception == FAIL_INVALID){
+		LOG("FAIL INVALID")
 		update_mask = CC_P | CC_A | CC_S | CC_Z | CC_O | CC_C;
 		cpu_load_eflags(env, CC_C, update_mask);
 	} else if(exception == FAIL_VALID){
+		LOG("FAIL VALID")
 		update_mask = CC_C | CC_P | CC_A | CC_S | CC_O | CC_Z;
 		cpu_load_eflags(env, CC_Z, update_mask);
 		// TODO: Set VM instruction error field to ErrNum
+		info->instruction_error_field = err_number;
 	}
 
 }
@@ -766,7 +772,7 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 		} else if (addr == env->vmxon_ptr_register){
 			LOG("FAIL - 3")
 			vm_exception(FAIL, 3, env);
-		} else{
+		} else {
 
 			/* TODO -- ensure that data for VMCS references by operand is in memory */
 			/* TODO -- initialize V<CS region */
@@ -876,7 +882,7 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 
 }
 
-void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags){
+void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags, int error_code){
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
 
@@ -887,6 +893,15 @@ void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ul
 	memset(&fields, 0, sizeof(struct vmcs_vmexit_information_fields));
 
 	fields.exit_reason.basic_reason = (uint16_t) basic_reason;
+	fields.exit_qualification = env->cr[2];
+	fields.interruption_info.vector = 14;
+	fields.interruption_info.type = 3;
+	fields.interruption_info.error_code_valid = 1;
+	fields.interruption_info.valid = 1;
+
+	fields.interruption_error_code = error_code;
+
+
 
 	vtx_vmexit(env, &fields, next_eip, eflags);
 
@@ -1297,27 +1312,27 @@ void helper_vtx_vmptrst(CPUX86State * env, target_ulong vmcs_addr_phys){
 static int32_t get_vmcs_offset16(target_ulong vmcs_field_encoding, int32_t is_write){
 
 	switch ((vmcs_field_encoding >> 1) << 1){
-		case 0x000: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vpid);
-		case 0x002: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.posted_interrupt_notification_vector);
-		case 0x004: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_index);
+		case 0x000: PRINT(vmcs_vmexecution_control_fields.vpid); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vpid);
+		case 0x002: PRINT(vmcs_vmexecution_control_fields.posted_interrupt_notification_vector); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.posted_interrupt_notification_vector);
+		case 0x004: PRINT(vmcs_vmexecution_control_fields.eptp_index); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_index);
 			
-		case 0x800: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.selector);
-		case 0x802: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.selector);
-		case 0x804: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.selector);
-		case 0x806: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.selector);
-		case 0x808: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.selector);
-		case 0x80A: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.selector);
-		case 0x80C: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.selector);
-		case 0x80E: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.selector);
-		case 0x810: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.guest_interrupt_status);
+		case 0x800: PRINT(vmcs_guest_state_area.es.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.selector);
+		case 0x802: PRINT(vmcs_guest_state_area.cs.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.selector);
+		case 0x804: PRINT(vmcs_guest_state_area.ss.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.selector);
+		case 0x806: PRINT(vmcs_guest_state_area.ds.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.selector);
+		case 0x808: PRINT(vmcs_guest_state_area.fs.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.selector);
+		case 0x80A: PRINT(vmcs_guest_state_area.gs.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.selector);
+		case 0x80C: PRINT(vmcs_guest_state_area.ldtr.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.selector);
+		case 0x80E: PRINT(vmcs_guest_state_area.tr.selector); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.selector);
+		case 0x810: PRINT(vmcs_guest_state_area.guest_interrupt_status); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.guest_interrupt_status);
 			
-		case 0xC00:return offsetof(vtx_vmcs_t, vmcs_host_state_area.es_selector);
-		case 0xC02:return offsetof(vtx_vmcs_t, vmcs_host_state_area.cs_selector);
-		case 0xC04:return offsetof(vtx_vmcs_t, vmcs_host_state_area.ss_selector);
-		case 0xC06:return offsetof(vtx_vmcs_t, vmcs_host_state_area.ds_selector);
-		case 0xC08:return offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_selector);
-		case 0xC0A:return offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_selector);
-		case 0xC0C:return offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_selector);
+		case 0xC00: PRINT(vmcs_host_state_area.es_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.es_selector);
+		case 0xC02: PRINT(vmcs_host_state_area.cs_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.cs_selector);
+		case 0xC04: PRINT(vmcs_host_state_area.ss_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.ss_selector);
+		case 0xC06: PRINT(vmcs_host_state_area.ds_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.ds_selector);
+		case 0xC08: PRINT(vmcs_host_state_area.fs_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_selector);
+		case 0xC0A: PRINT(vmcs_host_state_area.gs_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_selector);
+		case 0xC0C: PRINT(vmcs_host_state_area.tr_selector); return offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_selector);
 	
 		default:
 			return -1;
@@ -1329,83 +1344,83 @@ static int32_t get_vmcs_offset64(target_ulong vmcs_field_encoding, int32_t is_wr
 
 	switch ((vmcs_field_encoding >> 1) << 1){
 		case 0x2000: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_A);  
+		 PRINT(vmcs_vmexecution_control_fields.io_bitmap_addr_A); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_A);  
 		case 0x2002: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_B); 
+		 PRINT(vmcs_vmexecution_control_fields.io_bitmap_addr_B); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_B); 
 		case 0x2004: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_bitmap_low_msr); 
+		 PRINT(vmcs_vmexecution_control_fields.read_bitmap_low_msr); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_bitmap_low_msr); 
 		case 0x2006: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_addr); 
+		 PRINT(vmcs_vmexit_control_fields.msr_store_addr); return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_addr); 
 		case 0x2008: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_load_addr);
+		 PRINT(vmcs_vmexit_control_fields.msr_load_addr); return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_load_addr);
 		case 0x200A: 
-			return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.msr_load_addr);
+		 PRINT(vmcs_vmentry_control_fields.msr_load_addr); return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.msr_load_addr);
 		case 0x200C: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.executive_vmcs_pointer);
+		 PRINT(vmcs_vmexecution_control_fields.executive_vmcs_pointer); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.executive_vmcs_pointer);
 		case 0x2010: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tsc_offset);
+		 PRINT(vmcs_vmexecution_control_fields.tsc_offset); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tsc_offset);
 		case 0x2012: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_apic_address);
+		 PRINT(vmcs_vmexecution_control_fields.virt_apic_address); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_apic_address);
 		case 0x2014: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.apic_access_address);
+		 PRINT(vmcs_vmexecution_control_fields.apic_access_address); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.apic_access_address);
 		case 0x2016: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.posted_interrupt_descriptor_addr);
+		 PRINT(vmcs_vmexecution_control_fields.posted_interrupt_descriptor_addr); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.posted_interrupt_descriptor_addr);
 		case 0x2018: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vm_function_control_vector);
+		 PRINT(vmcs_vmexecution_control_fields.vm_function_control_vector); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vm_function_control_vector);
 		case 0x201A: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp);
+		 PRINT(vmcs_vmexecution_control_fields.eptp); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp);
 		case 0x201C: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[0]);
+		 PRINT(vmcs_vmexecution_control_fields.eoi_exit_bitmap[0]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[0]);
 		case 0x201E: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[1]);
+		 PRINT(vmcs_vmexecution_control_fields.eoi_exit_bitmap[1]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[1]);
 		case 0x2020: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[2]);
+		 PRINT(vmcs_vmexecution_control_fields.eoi_exit_bitmap[2]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[2]);
 		case 0x2022: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[3]);
+		 PRINT(vmcs_vmexecution_control_fields.eoi_exit_bitmap[3]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[3]);
 		case 0x2024: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_list_address);
+		 PRINT(vmcs_vmexecution_control_fields.eptp_list_address); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_list_address);
 		case 0x2026: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmread_bitmap);
+		 PRINT(vmcs_vmexecution_control_fields.vmread_bitmap); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmread_bitmap);
 		case 0x2028: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmwrite_bitmap);
+		 PRINT(vmcs_vmexecution_control_fields.vmwrite_bitmap); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmwrite_bitmap);
 		case 0x202A: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_exception_info_addr);
+		 PRINT(vmcs_vmexecution_control_fields.virt_exception_info_addr); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_exception_info_addr);
 		case 0x202C: 
-			return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.xss_exiting_bitmap);
+		 PRINT(vmcs_vmexecution_control_fields.xss_exiting_bitmap); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.xss_exiting_bitmap);
 
 		/* read only field */
 		case 0x2400:
 			if (!is_write){
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_phys_addr);
+			 PRINT(vmcs_vmexit_information_fields.guest_phys_addr); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_phys_addr);
 			} else {
 				return -2;
 			}
 		
 		case 0x2800:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.vmcs_link_ptr);
+		 PRINT(vmcs_guest_state_area.vmcs_link_ptr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.vmcs_link_ptr);
 		case 0x2802:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_debugctl);
+		 PRINT(vmcs_guest_state_area.msr_ia32_debugctl); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_debugctl);
 		case 0x2804:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_pat);
+		 PRINT(vmcs_guest_state_area.msr_ia32_pat); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_pat);
 		case 0x2806:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_efer);
+		 PRINT(vmcs_guest_state_area.msr_ia32_efer); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_efer);
 		case 0x2808:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_perf_global_ctrl);
+		 PRINT(vmcs_guest_state_area.msr_ia32_perf_global_ctrl); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_perf_global_ctrl);
 		case 0x280A:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[0]);
+		 PRINT(vmcs_guest_state_area.pdpte[0]); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[0]);
 		case 0x280C:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[1]);
+		 PRINT(vmcs_guest_state_area.pdpte[1]); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[1]);
 		case 0x280E:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[2]);
+		 PRINT(vmcs_guest_state_area.pdpte[2]); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[2]);
 		case 0x2810:
-			return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[3]);
+		 PRINT(vmcs_guest_state_area.pdpte[3]); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[3]);
 
 		case 0x2C00:
-			return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_pat);
+		 PRINT(vmcs_host_state_area.msr_ia32_pat); return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_pat);
 		case 0x2C02:
-			return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_efer);
+		 PRINT(vmcs_host_state_area.msr_ia32_efer); return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_efer);
 		case 0x2C04:
-			return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_perf_global_ctrl);
+		 PRINT(vmcs_host_state_area.msr_ia32_perf_global_ctrl); return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_perf_global_ctrl);
 
 
 		default:
@@ -1421,91 +1436,99 @@ static int32_t get_vmcs_offset32(target_ulong vmcs_field_encoding, int32_t is_wr
 
 
 	switch ((vmcs_field_encoding >> 1) << 1){
-		case 0x4000: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.async_event_control);
-		case 0x4002: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.primary_control);
-		case 0x4004: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.exception_bitmap);
-		case 0x4006: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_mask);
-		case 0x4008: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_match);
-		case 0x400A: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target_count);
-		case 0x400C: return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.vmexit_controls);
-		case 0x400E: return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_count);
-		case 0x4010: return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_load_count);
-		case 0x4012: return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.vmentry_controls);
-		case 0x4014: return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.msr_load_count);
-		case 0x4016: return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.interruption_info);
-		case 0x4018: return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.exception_err_code);
-		case 0x401A: return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.instruction_length);
-		case 0x401C: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tpr_threshold);
-		case 0x401E: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.secondary_control);
-		case 0x4020: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.ple_gap);
-		case 0x4022: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.ple_window);
+		case 0x4000: PRINT(vmcs_vmexecution_control_fields.async_event_control); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.async_event_control);
+		case 0x4002: PRINT(vmcs_vmexecution_control_fields.primary_control); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.primary_control);
+		case 0x4004: PRINT(vmcs_vmexecution_control_fields.exception_bitmap); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.exception_bitmap);
+		case 0x4006: PRINT(vmcs_vmexecution_control_fields.page_fault_error_code_mask); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_mask);
+		case 0x4008: PRINT(vmcs_vmexecution_control_fields.page_fault_error_code_match); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_match);
+		case 0x400A: PRINT(vmcs_vmexecution_control_fields.cr3_target_count); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target_count);
+		case 0x400C: PRINT(vmcs_vmexit_control_fields.vmexit_controls); return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.vmexit_controls);
+		case 0x400E: PRINT(vmcs_vmexit_control_fields.msr_store_count); return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_count);
+		case 0x4010: PRINT(vmcs_vmexit_control_fields.msr_load_count); return offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_load_count);
+		case 0x4012: PRINT(vmcs_vmentry_control_fields.vmentry_controls); return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.vmentry_controls);
+		case 0x4014: PRINT(vmcs_vmentry_control_fields.msr_load_count); return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.msr_load_count);
+		case 0x4016: PRINT(vmcs_vmentry_control_fields.interruption_info); return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.interruption_info);
+		case 0x4018: PRINT(vmcs_vmentry_control_fields.exception_err_code); return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.exception_err_code);
+		case 0x401A: PRINT(vmcs_vmentry_control_fields.instruction_length); return offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.instruction_length);
+		case 0x401C: PRINT(vmcs_vmexecution_control_fields.tpr_threshold); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tpr_threshold);
+		case 0x401E: PRINT(vmcs_vmexecution_control_fields.secondary_control); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.secondary_control);
+		case 0x4020: PRINT(vmcs_vmexecution_control_fields.ple_gap); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.ple_gap);
+		case 0x4022: PRINT(vmcs_vmexecution_control_fields.ple_window); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.ple_window);
 		
 		case 0x4400: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_error_field);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.instruction_error_field); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_error_field);
+			}
 			else
 				return -2;
 		case 0x4402: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_reason);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.exit_reason); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_reason);
+			}
 			else
 				return -2;
 		case 0x4404: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.interruption_info);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.interruption_info); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.interruption_info);
+			}
 			else
 				return -2;
 		case 0x4406: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.interruption_error_code);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.interruption_error_code); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.interruption_error_code);
+			}
 			else
 				return -2;
 		case 0x4408: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.idt_vectoring_info);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.idt_vectoring_info); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.idt_vectoring_info);
+			}
 			else
 				return -2;
 		case 0x440A: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.idt_vectoring_err_code);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.idt_vectoring_err_code); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.idt_vectoring_err_code);
+			}
 			else
 				return -2;
 		case 0x440C: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_length);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.instruction_length); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_length);
+			}
 			else
 				return -2;
 		case 0x440E: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_info);
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.instruction_info); return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_info);
+			}
 			else
 				return -2;
 
-		case 0x4800: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.segment_limit);
-		case 0x4802: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.segment_limit);
-		case 0x4804: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.segment_limit);
-		case 0x4806: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.segment_limit);
-		case 0x4808: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.segment_limit);
-		case 0x480A: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.segment_limit);
-		case 0x480C: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.segment_limit);
-		case 0x480E: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.segment_limit);
-		case 0x4810: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gdtr.limit);
-		case 0x4812: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.idtr.limit);
-		case 0x4814: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.access_rights);
-		case 0x4816: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.access_rights);
-		case 0x4818: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.access_rights);
-		case 0x481A: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.access_rights);
-		case 0x481C: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.access_rights);
-		case 0x481E: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.access_rights);
-		case 0x4820: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.access_rights);
-		case 0x4822: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.access_rights);
-		case 0x4824: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.interruptibility_state);
-		case 0x4826: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.activity_state);
-		case 0x4828: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.smbase);
-		case 0x482A: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_sysenter_cs);
-		case 0x482E: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.vmx_preemption_timer);
+		case 0x4800: PRINT(vmcs_guest_state_area.es.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.segment_limit);
+		case 0x4802: PRINT(vmcs_guest_state_area.cs.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.segment_limit);
+		case 0x4804: PRINT(vmcs_guest_state_area.ss.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.segment_limit);
+		case 0x4806: PRINT(vmcs_guest_state_area.ds.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.segment_limit);
+		case 0x4808: PRINT(vmcs_guest_state_area.fs.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.segment_limit);
+		case 0x480A: PRINT(vmcs_guest_state_area.gs.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.segment_limit);
+		case 0x480C: PRINT(vmcs_guest_state_area.ldtr.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.segment_limit);
+		case 0x480E: PRINT(vmcs_guest_state_area.tr.segment_limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.segment_limit);
+		case 0x4810: PRINT(vmcs_guest_state_area.gdtr.limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gdtr.limit);
+		case 0x4812: PRINT(vmcs_guest_state_area.idtr.limit); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.idtr.limit);
+		case 0x4814: PRINT(vmcs_guest_state_area.es.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.access_rights);
+		case 0x4816: PRINT(vmcs_guest_state_area.cs.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.access_rights);
+		case 0x4818: PRINT(vmcs_guest_state_area.ss.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.access_rights);
+		case 0x481A: PRINT(vmcs_guest_state_area.ds.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.access_rights);
+		case 0x481C: PRINT(vmcs_guest_state_area.fs.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.access_rights);
+		case 0x481E: PRINT(vmcs_guest_state_area.gs.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.access_rights);
+		case 0x4820: PRINT(vmcs_guest_state_area.ldtr.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.access_rights);
+		case 0x4822: PRINT(vmcs_guest_state_area.tr.access_rights); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.access_rights);
+		case 0x4824: PRINT(vmcs_guest_state_area.interruptibility_state); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.interruptibility_state);
+		case 0x4826: PRINT(vmcs_guest_state_area.activity_state); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.activity_state);
+		case 0x4828: PRINT(vmcs_guest_state_area.smbase); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.smbase);
+		case 0x482A: PRINT(vmcs_guest_state_area.msr_sysenter_cs); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_sysenter_cs);
+		case 0x482E: PRINT(vmcs_guest_state_area.vmx_preemption_timer); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.vmx_preemption_timer);
 
-		case 0x4C00: return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_sysenter_cs);
+		case 0x4C00: PRINT(vmcs_host_state_area.msr_sysenter_cs); return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_sysenter_cs);
 
 		default:
 			break;
@@ -1517,82 +1540,92 @@ static int32_t get_vmcs_offset32(target_ulong vmcs_field_encoding, int32_t is_wr
 static int32_t get_vmcs_offset_target(target_ulong vmcs_field_encoding, int32_t is_write){
 
 	switch ((vmcs_field_encoding >> 1) << 1){
-		case 0x6000: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.mask_cr0); 
-		case 0x6002: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.mask_cr4);
-		case 0x6004: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_shadow_cr0);
-		case 0x6006: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_shadow_cr4);
-		case 0x6008: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[0]);
-		case 0x600A: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[1]);
-		case 0x600C: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[2]);
-		case 0x600E: return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[3]);
+		case 0x6000: PRINT(vmcs_vmexecution_control_fields.mask_cr0); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.mask_cr0); 
+		case 0x6002: PRINT(vmcs_vmexecution_control_fields.mask_cr4); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.mask_cr4);
+		case 0x6004: PRINT(vmcs_vmexecution_control_fields.read_shadow_cr0); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_shadow_cr0);
+		case 0x6006: PRINT(vmcs_vmexecution_control_fields.read_shadow_cr4); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_shadow_cr4);
+		case 0x6008: PRINT(vmcs_vmexecution_control_fields.cr3_target[0]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[0]);
+		case 0x600A: PRINT(vmcs_vmexecution_control_fields.cr3_target[1]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[1]);
+		case 0x600C: PRINT(vmcs_vmexecution_control_fields.cr3_target[2]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[2]);
+		case 0x600E: PRINT(vmcs_vmexecution_control_fields.cr3_target[3]); return offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[3]);
 
 		case 0x6400: 
 			if (!is_write) {
-				LOG("6400 - returning success")
+			 	PRINT(vmcs_vmexit_information_fields.exit_qualification); 
 				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_qualification); 
 			} else {
-				LOG("6400 - failure")
 				return -2;
 			}
 		case 0x6402:
-			if (!is_write) 
+			if (!is_write) {
+			 	PRINT(vmcs_vmexit_information_fields.io_rcx); 
 				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rcx); 
-			else
+			} else {
 				return -2;
+			}
 		case 0x6404:
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rsi); 
-			else
+			if (!is_write) {
+			 PRINT(vmcs_vmexit_information_fields.io_rsi); 
+			 return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rsi); 
+			}
+			else {
 				return -2;
+			}
 		case 0x6406:
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rdi); 
-			else
+			if (!is_write) {
+			 return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rdi); 
+			}
+			else {
 				return -2;
+			}
 		case 0x6408:
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rip); 
-			else
+			if (!is_write) {
+			 return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rip); 
+			}
+			else {
 				return -2;
+			}
 		case 0x640A: 
-			if (!is_write) 
-				return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_linear_addr); 
-			else
+			if (!is_write) {
+			     return offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_linear_addr); 
+			}
+			else {
 				return -2;
+			}
 
-		case 0x6800: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr0);
-		case 0x6802: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr3);
-		case 0x6804: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr4);
-		case 0x6806: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.base_addr);
-		case 0x6808: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.base_addr);
-		case 0x680A: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.base_addr);
-		case 0x680C: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.base_addr);
-		case 0x680E: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.base_addr);
-		case 0x6810: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.base_addr);
-		case 0x6812: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.base_addr);
-		case 0x6814: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.base_addr);
-		case 0x6816: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gdtr.base_addr);
-		case 0x6818: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.idtr.base_addr);
-		case 0x681A: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.dr7);
-		case 0x681C: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.esp);
-		case 0x681E: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.eip);
-		case 0x6820: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.eflags);
-		case 0x6822: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pending_debug_exceptions);
-		case 0x6824: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_sysenter_esp);
-		case 0x6826: return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_sysenter_eip);
+		case 0x6800: PRINT(vmcs_guest_state_area.cr0); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr0);
+		case 0x6802: PRINT(vmcs_guest_state_area.cr3); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr3);
+		case 0x6804: PRINT(vmcs_guest_state_area.cr4); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr4);
+		case 0x6806: PRINT(vmcs_guest_state_area.es.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.base_addr);
+		case 0x6808: PRINT(vmcs_guest_state_area.cs.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.base_addr);
+		case 0x680A: PRINT(vmcs_guest_state_area.ss.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.base_addr);
+		case 0x680C: PRINT(vmcs_guest_state_area.ds.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.base_addr);
+		case 0x680E: PRINT(vmcs_guest_state_area.fs.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.base_addr);
+		case 0x6810: PRINT(vmcs_guest_state_area.gs.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.base_addr);
+		case 0x6812: PRINT(vmcs_guest_state_area.ldtr.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.base_addr);
+		case 0x6814: PRINT(vmcs_guest_state_area.tr.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.base_addr);
+		case 0x6816: PRINT(vmcs_guest_state_area.gdtr.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.gdtr.base_addr);
+		case 0x6818: PRINT(vmcs_guest_state_area.idtr.base_addr); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.idtr.base_addr);
+		case 0x681A: PRINT(vmcs_guest_state_area.dr7); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.dr7);
+		case 0x681C: PRINT(vmcs_guest_state_area.esp); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.esp);
+		case 0x681E: PRINT(vmcs_guest_state_area.eip); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.eip);
+		case 0x6820: PRINT(vmcs_guest_state_area.eflags); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.eflags);
+		case 0x6822: PRINT(vmcs_guest_state_area.pending_debug_exceptions); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.pending_debug_exceptions);
+		case 0x6824: PRINT(vmcs_guest_state_area.msr_ia32_sysenter_esp); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_sysenter_esp);
+		case 0x6826: PRINT(vmcs_guest_state_area.msr_ia32_sysenter_eip); return offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_sysenter_eip);
 
-		case 0x6C00: return offsetof(vtx_vmcs_t, vmcs_host_state_area.cr0);
-		case 0x6C02: return offsetof(vtx_vmcs_t, vmcs_host_state_area.cr3);
-		case 0x6C04: return offsetof(vtx_vmcs_t, vmcs_host_state_area.cr4);
-		case 0x6C06: return offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_base_addr);
-		case 0x6C08: return offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_base_addr);
-		case 0x6C0A: return offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_base_addr);
-		case 0x6C0C: return offsetof(vtx_vmcs_t, vmcs_host_state_area.gdtr_base_addr);
-		case 0x6C0E: return offsetof(vtx_vmcs_t, vmcs_host_state_area.idtr_base_addr);
-		case 0x6C10: return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_sysenter_esp);
-		case 0x6C12: return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_sysenter_eip);
-		case 0x6C14: return offsetof(vtx_vmcs_t, vmcs_host_state_area.esp);
-		case 0x6C16: return offsetof(vtx_vmcs_t, vmcs_host_state_area.eip);
+		case 0x6C00: PRINT(vmcs_host_state_area.cr0); return offsetof(vtx_vmcs_t, vmcs_host_state_area.cr0);
+		case 0x6C02: PRINT(vmcs_host_state_area.cr3); return offsetof(vtx_vmcs_t, vmcs_host_state_area.cr3);
+		case 0x6C04: PRINT(vmcs_host_state_area.cr4); return offsetof(vtx_vmcs_t, vmcs_host_state_area.cr4);
+		case 0x6C06: PRINT(vmcs_host_state_area.fs_base_addr); return offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_base_addr);
+		case 0x6C08: PRINT(vmcs_host_state_area.gs_base_addr); return offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_base_addr);
+		case 0x6C0A: PRINT(vmcs_host_state_area.tr_base_addr); return offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_base_addr);
+		case 0x6C0C: PRINT(vmcs_host_state_area.gdtr_base_addr); return offsetof(vtx_vmcs_t, vmcs_host_state_area.gdtr_base_addr);
+		case 0x6C0E: PRINT(vmcs_host_state_area.idtr_base_addr); return offsetof(vtx_vmcs_t, vmcs_host_state_area.idtr_base_addr);
+		case 0x6C10: PRINT(vmcs_host_state_area.msr_ia32_sysenter_esp); return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_sysenter_esp);
+		case 0x6C12: PRINT(vmcs_host_state_area.msr_ia32_sysenter_eip); return offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_sysenter_eip);
+		case 0x6C14: PRINT(vmcs_host_state_area.esp); return offsetof(vtx_vmcs_t, vmcs_host_state_area.esp);
+		case 0x6C16: PRINT(vmcs_host_state_area.eip); return offsetof(vtx_vmcs_t, vmcs_host_state_area.eip);
 
 		default: break;
 	}
@@ -1645,6 +1678,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					} else {
 						LOG("VMREAD working...")
 						env->vmread_output.vmread_field = x86_lduw_phys(cs, env->vmcs_ptr_register + offset);
+						printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -1666,6 +1700,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 						else
 							env->vmread_output.vmread_field = x86_ldq_phys(cs, env->vmcs_ptr_register + offset);
 						
+						printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -1684,6 +1719,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					} else {
 						LOG("VMREAD working...")
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
+						printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -1702,7 +1738,6 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 						LOG("VMREAD working...")
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
 						printf("Got value %d\n", env->vmread_output.vmread_field);
-						printf("Setting Encoding to %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
