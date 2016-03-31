@@ -12,11 +12,9 @@
 
 #define VMCS_CLEAR_ADDRESS 0xFFFFFFFF
 
-// HTONL-- probably use bswap
-#define REVERSE_ENDIAN_32(n) (((((unsigned long)(n) & 0xFF)) << 24) | \
-		                  ((((unsigned long)(n) & 0xFF00)) << 8) | \
-		                  ((((unsigned long)(n) & 0xFF0000)) >> 8) | \
-		                  ((((unsigned long)(n) & 0xFF000000)) >> 24))
+
+
+
 
 #define DEBUG
 #if defined (DEBUG)
@@ -41,6 +39,194 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 
 // }
 
+static void flush_field16(CPUX86State * env, uint32_t offset, uint16_t val){
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+	x86_stw_phys(cs, env->vmcs_ptr_register + offset, val);
+
+}
+
+static void flush_field32(CPUX86State * env, uint32_t offset, uint32_t val){
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+	x86_stl_phys(cs, env->vmcs_ptr_register + offset, val);
+
+}
+
+static void flush_field64(CPUX86State * env, uint32_t offset, uint64_t val){
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+	x86_stq_phys(cs, env->vmcs_ptr_register + offset, val);
+
+}
+static void flush_field_tl(CPUX86State * env, uint32_t offset, target_ulong val){
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+	x86_stl_phys(cs, env->vmcs_ptr_register + offset, val);
+
+}
+
+
+static void flush_active_vmcs(CPUX86State * env){
+
+	if (env->processor_vmcs == NULL)
+		return;
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vpid), (uint16_t) (vmcs->vmcs_vmexecution_control_fields.vpid));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.posted_interrupt_notification_vector), (uint16_t) (vmcs->vmcs_vmexecution_control_fields.posted_interrupt_notification_vector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_index), (uint16_t) (vmcs->vmcs_vmexecution_control_fields.eptp_index));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.selector), (uint16_t) (vmcs->vmcs_guest_state_area.es.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.selector), (uint16_t) (vmcs->vmcs_guest_state_area.cs.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.selector), (uint16_t) (vmcs->vmcs_guest_state_area.ss.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.selector), (uint16_t) (vmcs->vmcs_guest_state_area.ds.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.selector), (uint16_t) (vmcs->vmcs_guest_state_area.fs.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.selector), (uint16_t) (vmcs->vmcs_guest_state_area.gs.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.selector), (uint16_t) (vmcs->vmcs_guest_state_area.ldtr.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.selector), (uint16_t) (vmcs->vmcs_guest_state_area.tr.selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.guest_interrupt_status), (uint16_t) (vmcs->vmcs_guest_state_area.guest_interrupt_status_val));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.es_selector), (uint16_t) (vmcs->vmcs_host_state_area.es_selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.cs_selector), (uint16_t) (vmcs->vmcs_host_state_area.cs_selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.ss_selector), (uint16_t) (vmcs->vmcs_host_state_area.ss_selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.ds_selector), (uint16_t) (vmcs->vmcs_host_state_area.ds_selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_selector), (uint16_t) (vmcs->vmcs_host_state_area.fs_selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_selector), (uint16_t) (vmcs->vmcs_host_state_area.gs_selector));
+	flush_field16(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_selector), (uint16_t) (vmcs->vmcs_host_state_area.tr_selector));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_A), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.io_bitmap_addr_A));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.io_bitmap_addr_B), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.io_bitmap_addr_B));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_bitmap_low_msr), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.read_bitmap_low_msr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_addr), (uint64_t) (vmcs->vmcs_vmexit_control_fields.msr_store_addr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_load_addr), (uint64_t) (vmcs->vmcs_vmexit_control_fields.msr_load_addr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.msr_load_addr), (uint64_t) (vmcs->vmcs_vmentry_control_fields.msr_load_addr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.executive_vmcs_pointer), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.executive_vmcs_pointer));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tsc_offset), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.tsc_offset));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_apic_address), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.virt_apic_address));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.apic_access_address), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.apic_access_address));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.posted_interrupt_descriptor_addr), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.posted_interrupt_descriptor_addr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vm_function_control_vector), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.vm_function_control_vector));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.eptp_val));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[0]), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.eoi_exit_bitmap[0]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[1]), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.eoi_exit_bitmap[1]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[2]), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.eoi_exit_bitmap[2]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eoi_exit_bitmap[3]), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.eoi_exit_bitmap[3]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.eptp_list_address), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.eptp_list_address));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmread_bitmap), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.vmread_bitmap));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.vmwrite_bitmap), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.vmwrite_bitmap));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.virt_exception_info_addr), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.virt_exception_info_addr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.xss_exiting_bitmap), (uint64_t) (vmcs->vmcs_vmexecution_control_fields.xss_exiting_bitmap));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_phys_addr), (uint64_t) (vmcs->vmcs_vmexit_information_fields.guest_phys_addr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.vmcs_link_ptr), (uint64_t) (vmcs->vmcs_guest_state_area.vmcs_link_ptr));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_debugctl), (uint64_t) (vmcs->vmcs_guest_state_area.msr_ia32_debugctl));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_pat), (uint64_t) (vmcs->vmcs_guest_state_area.msr_ia32_pat));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_efer), (uint64_t) (vmcs->vmcs_guest_state_area.msr_ia32_efer));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_perf_global_ctrl), (uint64_t) (vmcs->vmcs_guest_state_area.msr_ia32_perf_global_ctrl));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[0]), (uint64_t) (vmcs->vmcs_guest_state_area.pdpte[0]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[1]), (uint64_t) (vmcs->vmcs_guest_state_area.pdpte[1]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[2]), (uint64_t) (vmcs->vmcs_guest_state_area.pdpte[2]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.pdpte[3]), (uint64_t) (vmcs->vmcs_guest_state_area.pdpte[3]));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_pat), (uint64_t) (vmcs->vmcs_host_state_area.msr_ia32_pat));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_efer), (uint64_t) (vmcs->vmcs_host_state_area.msr_ia32_efer));
+	flush_field64(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_perf_global_ctrl), (uint64_t) (vmcs->vmcs_host_state_area.msr_ia32_perf_global_ctrl));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.async_event_control), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.async_event_control));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.primary_control), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.primary_control));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.exception_bitmap), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.exception_bitmap));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_mask), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.page_fault_error_code_mask));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.page_fault_error_code_match), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.page_fault_error_code_match));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target_count), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.cr3_target_count));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.vmexit_controls), (uint32_t) (vmcs->vmcs_vmexit_control_fields.vmexit_controls));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_store_count), (uint32_t) (vmcs->vmcs_vmexit_control_fields.msr_store_count));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_control_fields.msr_load_count), (uint32_t) (vmcs->vmcs_vmexit_control_fields.msr_load_count));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.vmentry_controls), (uint32_t) (vmcs->vmcs_vmentry_control_fields.vmentry_controls));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.msr_load_count), (uint32_t) (vmcs->vmcs_vmentry_control_fields.msr_load_count));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.interruption_info), (uint32_t) (vmcs->vmcs_vmentry_control_fields.interruption_info_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.exception_err_code), (uint32_t) (vmcs->vmcs_vmentry_control_fields.exception_err_code));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmentry_control_fields.instruction_length), (uint32_t) (vmcs->vmcs_vmentry_control_fields.instruction_length));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.tpr_threshold), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.tpr_threshold));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.secondary_control), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.secondary_control));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.ple_gap), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.ple_gap));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.ple_window), (uint32_t) (vmcs->vmcs_vmexecution_control_fields.ple_window));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_error_field), (uint32_t) (vmcs->vmcs_vmexit_information_fields.instruction_error_field));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_reason), (uint32_t) (vmcs->vmcs_vmexit_information_fields.exit_reason_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.interruption_info), (uint32_t) (vmcs->vmcs_vmexit_information_fields.interruption_info_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.interruption_error_code), (uint32_t) (vmcs->vmcs_vmexit_information_fields.interruption_error_code));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.idt_vectoring_info), (uint32_t) (vmcs->vmcs_vmexit_information_fields.idt_vectoring_info_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.idt_vectoring_err_code), (uint32_t) (vmcs->vmcs_vmexit_information_fields.idt_vectoring_err_code));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_length), (uint32_t) (vmcs->vmcs_vmexit_information_fields.instruction_length));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.instruction_info), (uint32_t) (vmcs->vmcs_vmexit_information_fields.instruction_info));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.es.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.cs.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.ss.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.ds.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.fs.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.gs.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.ldtr.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.segment_limit), (uint32_t) (vmcs->vmcs_guest_state_area.tr.segment_limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.gdtr.limit), (uint32_t) (vmcs->vmcs_guest_state_area.gdtr.limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.idtr.limit), (uint32_t) (vmcs->vmcs_guest_state_area.idtr.limit));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.es.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.cs.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.ss.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.ds.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.fs.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.gs.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.ldtr.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.access_rights), (uint32_t) (vmcs->vmcs_guest_state_area.tr.access_rights_val));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.interruptibility_state), (uint32_t) (vmcs->vmcs_guest_state_area.interruptibility_state));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.activity_state), (uint32_t) (vmcs->vmcs_guest_state_area.activity_state));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.smbase), (uint32_t) (vmcs->vmcs_guest_state_area.smbase));
+	flush_field32(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_sysenter_cs), (uint32_t) (vmcs->vmcs_guest_state_area.msr_sysenter_cs));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.vmx_preemption_timer), (target_ulong) (vmcs->vmcs_guest_state_area.vmx_preemption_timer));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_sysenter_cs), (target_ulong) (vmcs->vmcs_host_state_area.msr_sysenter_cs));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.mask_cr0), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.mask_cr0));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.mask_cr4), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.mask_cr4));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_shadow_cr0), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.read_shadow_cr0));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.read_shadow_cr4), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.read_shadow_cr4));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[0]), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.cr3_target[0]));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[1]), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.cr3_target[1]));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[2]), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.cr3_target[2]));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexecution_control_fields.cr3_target[3]), (target_ulong) (vmcs->vmcs_vmexecution_control_fields.cr3_target[3]));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.exit_qualification), (target_ulong) (vmcs->vmcs_vmexit_information_fields.exit_qualification));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rcx), (target_ulong) (vmcs->vmcs_vmexit_information_fields.io_rcx));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rsi), (target_ulong) (vmcs->vmcs_vmexit_information_fields.io_rsi));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr0), (target_ulong) (vmcs->vmcs_guest_state_area.cr0));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr3), (target_ulong) (vmcs->vmcs_guest_state_area.cr3));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cr4), (target_ulong) (vmcs->vmcs_guest_state_area.cr4));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.es.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.es.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.cs.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.cs.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ss.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.ss.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ds.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.ds.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.fs.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.fs.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.gs.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.gs.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.ldtr.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.ldtr.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.tr.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.tr.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.gdtr.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.gdtr.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.idtr.base_addr), (target_ulong) (vmcs->vmcs_guest_state_area.idtr.base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.dr7), (target_ulong) (vmcs->vmcs_guest_state_area.dr7));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.esp), (target_ulong) (vmcs->vmcs_guest_state_area.esp));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.eip), (target_ulong) (vmcs->vmcs_guest_state_area.eip));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.eflags), (target_ulong) (vmcs->vmcs_guest_state_area.eflags));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.pending_debug_exceptions), (target_ulong) (vmcs->vmcs_guest_state_area.pending_debug_exceptions_val));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_sysenter_esp), (target_ulong) (vmcs->vmcs_guest_state_area.msr_ia32_sysenter_esp));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_guest_state_area.msr_ia32_sysenter_eip), (target_ulong) (vmcs->vmcs_guest_state_area.msr_ia32_sysenter_eip));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.cr0), (target_ulong) (vmcs->vmcs_host_state_area.cr0));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.cr3), (target_ulong) (vmcs->vmcs_host_state_area.cr3));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.cr4), (target_ulong) (vmcs->vmcs_host_state_area.cr4));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.fs_base_addr), (target_ulong) (vmcs->vmcs_host_state_area.fs_base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.gs_base_addr), (target_ulong) (vmcs->vmcs_host_state_area.gs_base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.tr_base_addr), (target_ulong) (vmcs->vmcs_host_state_area.tr_base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.gdtr_base_addr), (target_ulong) (vmcs->vmcs_host_state_area.gdtr_base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.idtr_base_addr), (target_ulong) (vmcs->vmcs_host_state_area.idtr_base_addr));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_sysenter_esp), (target_ulong) (vmcs->vmcs_host_state_area.msr_ia32_sysenter_esp));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.msr_ia32_sysenter_eip), (target_ulong) (vmcs->vmcs_host_state_area.msr_ia32_sysenter_eip));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.esp), (target_ulong) (vmcs->vmcs_host_state_area.esp));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_host_state_area.eip), (target_ulong) (vmcs->vmcs_host_state_area.eip));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rdi), (target_ulong) (vmcs->vmcs_vmexit_information_fields.io_rdi));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.io_rip), (target_ulong) (vmcs->vmcs_vmexit_information_fields.io_rip));
+	flush_field_tl(env, offsetof(vtx_vmcs_t, vmcs_vmexit_information_fields.guest_linear_addr), (target_ulong) (vmcs->vmcs_vmexit_information_fields.guest_linear_addr));
+
+
+}
 
 static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86State * env){
 
@@ -874,6 +1060,7 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		vmlaunch_load_msrs(env);
 		vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
 		env->vmx_operation = VMX_NON_ROOT_OPERATION;
+		flush_active_vmcs(env);
 		vm_exception(SUCCEED, 0, env);
 	}
 
@@ -1219,6 +1406,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 
 	clear_address_range_monitoring(env);
 
+	flush_active_vmcs(env);
 
 	// this was skipped in the manual, but might be importatn
 	env->vmx_operation = VMX_ROOT_OPERATION;
@@ -1651,7 +1839,6 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION /* AND shadow stuff */){
 		/* vm exit */
 	} else if (cpl > 0){
-		printf("CPL === ==== === %d\n", cpl);
 		LOG("GEN PROTECTION FAULT")
 		raise_exception(env, EXCP0D_GPF);
 	} else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs_ptr_register == VMCS_CLEAR_ADDRESS) or
@@ -1767,7 +1954,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 	LOG_EXIT	
 }
 
-	
+
 
 void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, target_ulong data){
 

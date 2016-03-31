@@ -80,26 +80,32 @@ struct QEMU_PACKED vmcs_guest_state_area {
 	#define INTERRUPTIBILITY_SMIBLOCK 	(1U << 2)
 	#define INTERRUPTIBILITY_NMIBLOCK 	(1U << 3)
 
-	struct QEMU_PACKED _pending_debug_exceptions {
-		uint32_t b0:1;
-		uint32_t b1:1;
-		uint32_t b2:1;
-		uint32_t b3:1;
-		uint32_t reserved0:8;
-		uint32_t enabled_breakpoint:1;
-		uint32_t reserved1:1;
-		uint32_t bs:1;
-		uint64_t reserved2:49;
-	} pending_debug_exceptions;
+	union {
+		uint64_t pending_debug_exceptions_val;
+		struct QEMU_PACKED _pending_debug_exceptions {
+			uint32_t b0:1;
+			uint32_t b1:1;
+			uint32_t b2:1;
+			uint32_t b3:1;
+			uint32_t reserved0:8;
+			uint32_t enabled_breakpoint:1;
+			uint32_t reserved1:1;
+			uint32_t bs:1;
+			uint64_t reserved2:49;
+		} pending_debug_exceptions;
+	};
 
 	uint64_t vmcs_link_ptr;
 	uint32_t vmx_preemption_timer;
 	uint64_t pdpte[4];
 
-	struct QEMU_PACKED _guest_interrupt_status {
-		uint8_t rvi;
-		uint8_t svi;
-	} guest_interrupt_status;
+	union {
+		uint16_t guest_interrupt_status_val;
+		struct QEMU_PACKED _guest_interrupt_status {
+			uint8_t rvi;
+			uint8_t svi;
+		} guest_interrupt_status;
+	};
 };
 
 struct QEMU_PACKED vmcs_host_state_area {
@@ -219,18 +225,21 @@ struct QEMU_PACKED vmcs_vmexecution_control_fields {
 
 	uint64_t executive_vmcs_pointer;
 
-	struct QEMU_PACKED {
-		uint32_t mem_type: 3;
-		#define EPTP_MEM_UNCACHEABLE 1
-		#define EPTP_MEM_WRITEBACK 6
+	union {
+		uint64_t eptp_val;
+		struct QEMU_PACKED {
+			uint32_t mem_type: 3;
+			#define EPTP_MEM_UNCACHEABLE 1
+			#define EPTP_MEM_WRITEBACK 6
 
-		uint32_t ept_page_walk_len_decr_1:3;
-		uint32_t access_dirty:1;
-		uint32_t reserved0:5;
-		//#assume physical address is 32 bits
-		uint32_t rpt_pml4_table:20;
-		uint32_t reserved;
-	} eptp;
+			uint32_t ept_page_walk_len_decr_1:3;
+			uint32_t access_dirty:1;
+			uint32_t reserved0:5;
+			//#assume physical address is 32 bits
+			uint32_t rpt_pml4_table:20;
+			uint32_t reserved;
+		} eptp;
+	};
 
 	uint16_t vpid;
 	uint32_t ple_gap;
@@ -280,21 +289,24 @@ struct QEMU_PACKED vmcs_vmentry_control_fields {
 	uint32_t msr_load_count;
 	uint64_t msr_load_addr;
 
-	struct QEMU_PACKED {
-		uint8_t vector;
-		uint32_t type:3;
-		#define INT_TYPE_EXT 			0x0
-		#define INT_TYPE_RESVD 			0x1
-		#define INT_TYPE_NMI 			0x2
-		#define INT_TYPE_HW 			0x3
-		#define INT_TYPE_SW 			0x4
-		#define INT_TYPE_PRIV_SW_EXCEP 	0x5
-		#define INT_TYPE_SW_EXCEP 		0x6
-		#define INT_TYPE_OTHER 			0x7
-		uint32_t deliver_err_code:1;
-		uint32_t reserved0:19;
-		uint32_t valid:1;
-	} interruption_info;
+	union {
+		uint32_t interruption_info_val;
+		struct QEMU_PACKED {
+			uint8_t vector;
+			uint32_t type:3;
+			#define INT_TYPE_EXT 			0x0
+			#define INT_TYPE_RESVD 			0x1
+			#define INT_TYPE_NMI 			0x2
+			#define INT_TYPE_HW 			0x3
+			#define INT_TYPE_SW 			0x4
+			#define INT_TYPE_PRIV_SW_EXCEP 	0x5
+			#define INT_TYPE_SW_EXCEP 		0x6
+			#define INT_TYPE_OTHER 			0x7
+			uint32_t deliver_err_code:1;
+			uint32_t reserved0:19;
+			uint32_t valid:1;
+		} interruption_info;
+	};
 
 	uint32_t exception_err_code;
 	uint32_t instruction_length;
@@ -302,36 +314,47 @@ struct QEMU_PACKED vmcs_vmentry_control_fields {
 
 struct QEMU_PACKED vmcs_vmexit_information_fields {
 
-	struct QEMU_PACKED {
-		uint16_t basic_reason;
-		uint32_t reserved0:12;
-		uint32_t pending_mtf_vm_exit:1;
-		uint32_t vm_exit_from_vmx_root_op:1;
-		uint32_t reserved1:1;
-		uint32_t vm_entry_failure:1;
-	} exit_reason;
+	union {
+		struct QEMU_PACKED {
+			uint16_t basic_reason;
+			uint32_t reserved0:12;
+			uint32_t pending_mtf_vm_exit:1;
+			uint32_t vm_exit_from_vmx_root_op:1;
+			uint32_t reserved1:1;
+			uint32_t vm_entry_failure:1;
+		} exit_reason;
+		uint32_t exit_reason_val;
+	};
+
 	target_ulong exit_qualification;
 	target_ulong guest_linear_addr;
 	uint64_t guest_phys_addr;
-	struct QEMU_PACKED {
-		uint8_t vector;
-		uint32_t type:3;
-		uint32_t error_code_valid:1;
-		uint32_t nmi_unblocking_iret:1;
-		uint32_t reserved0:18;
-		uint32_t valid:1;
-	} interruption_info;
+	
+	union {
+		struct QEMU_PACKED {
+			uint8_t vector;
+			uint32_t type:3;
+			uint32_t error_code_valid:1;
+			uint32_t nmi_unblocking_iret:1;
+			uint32_t reserved0:18;
+			uint32_t valid:1;
+		} interruption_info;
+		uint32_t interruption_info_val;
+	};
 
 	uint32_t interruption_error_code;
 
-	struct QEMU_PACKED {
-		uint8_t vector;
-		uint32_t type:3;
-		uint32_t err_code_valid:1;
-		uint32_t undefined:1;
-		uint32_t reserved0:18;
-		uint32_t valid:1;
-	} idt_vectoring_info;
+	union {
+		uint32_t idt_vectoring_info_val;
+		struct QEMU_PACKED {
+			uint8_t vector;
+			uint32_t type:3;
+			uint32_t err_code_valid:1;
+			uint32_t undefined:1;
+			uint32_t reserved0:18;
+			uint32_t valid:1;
+		} idt_vectoring_info;
+	};	
 	uint32_t idt_vectoring_err_code;
 
 	uint32_t instruction_length;
