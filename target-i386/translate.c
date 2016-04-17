@@ -4403,6 +4403,8 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
     target_ulong next_eip, tval;
     int rex_w, rex_r;
 
+
+
     s->pc = pc_start;
     prefixes = 0;
     s->override = -1;
@@ -4419,6 +4421,11 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
  next_byte:
     b = cpu_ldub_code(env, s->pc);
     s->pc++;
+
+    if (env->vmx_operation == VMX_NON_ROOT_OPERATION)
+        printf("Running opcode %d\n", b);
+
+    
     /* Collect prefixes.  */
     switch (b) {
     case 0xf3:

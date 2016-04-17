@@ -831,6 +831,7 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 	LOG_ENTRY
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
 	
 	target_ulong addr;
 	int cpl = env->segs[R_CS].selector & 0x3;
@@ -863,6 +864,7 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 				vm_exception(FAIL, 11, env); // to, envdo
 			} else {
 				env->vmcs_ptr_register = addr;
+				vmcs->revision_identifier = env->msr_ia32_vmx_basic & 0x7FFFFFFF;
 				printf("Set vmcs ptr to %d\n", addr);
 				//load_vmcs_proc(addr);
 				vm_exception(SUCCEED, 0, env);
@@ -963,7 +965,7 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 			/* TODO -- ensure that data for VMCS references by operand is in memory */
 			/* TODO -- initialize V<CS region */
 			x86_stl_phys(cs, addr + offsetof(vtx_vmcs_t, launch_state), LAUNCH_STATE_CLEAR);
-			// sets revision identifier to 0 as well, just because width is 32
+			// sets shadow_vmcs_indicator to 0 as well, just because width is 32
 			// we dont use offsetof here since that would produce bitfield ptr error
 			// luckily, revision_identifier is the first element in the struct
 			x86_stl_phys(cs, addr, MSR_IA32_VMX_BASIC_DEFAULT & 0x7FFFFFFF);
@@ -1057,6 +1059,7 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		// }
 		
 		vmlaunch_load_guest_state(env);
+		clear_address_range_monitoring(env);
 		vmlaunch_load_msrs(env);
 		vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
 		env->vmx_operation = VMX_NON_ROOT_OPERATION;
@@ -1105,14 +1108,24 @@ void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ul
 static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags){
 
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+
 	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
 	struct vmcs_host_state_area * h = &(vmcs->vmcs_host_state_area);
+	struct vmcs_vmexit_information_fields * info = &(vmcs->vmcs_vmexit_information_fields);
 	uint32_t vmexit_controls = vmcs->vmcs_vmexit_control_fields.vmexit_controls;
 	
 	/* 27.2 record exit info */
 	// TODO: some other stuff in 27.2
-	memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(struct vmcs_vmexit_information_fields));
+	//memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(struct vmcs_vmexit_information_fields));
 
+	info->exit_reason.basic_reason = 0;
+	info->exit_qualification = env->cr[2];
+	info->interruption_info.vector = 14;
+	info->interruption_info.type = 3;
+	info->interruption_info.error_code_valid = 1;
+	info->interruption_info.valid = 1;
+
+	info->interruption_error_code = 4;
 	/* save guest state */
 
 	g->cr0 = env->cr[0];
@@ -1401,7 +1414,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	env->regs[R_ESP] = h->esp;
 	env->eflags = 0x1;
 
-	// paging stuff, might be important TDOD
+	// paging stuff, might be important TODO
 
 
 	clear_address_range_monitoring(env);
@@ -1410,6 +1423,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 
 	// this was skipped in the manual, but might be importatn
 	env->vmx_operation = VMX_ROOT_OPERATION;
+	vm_exception(SUCCEED,0, env);
 
 	LOG_EXIT
 
@@ -1418,60 +1432,78 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 
 void helper_vtx_vmresume(CPUX86State * env){
 
-	// int cpl = env->segs[R_CS].selector & 0x3;
 
-	// vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
-
-	// /* again, check DESC_L_MASK 64 bit only ? */
-	// if (env->vmx_operation == VMX_DISABLED or
-	// 	!ISSET(env->cr[0], CR0_PE_MASK) or
-	// 	ISSET(env->eflags, VM_MASK) or 
-	// 	(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-	// 		raise_exception(env, EXCP06_ILLOP);
-	// } else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-	// 	/* vm exit */
-	// } else if (cpl > 0){
-	// 	raise_exception(env, EXCP0D_GPF);
-	// } else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
-	// 	vm_exception(FAIL_INVALID, 0, env);
-	// // } else if (/* events blocked by MOV SS */){
-	// 	// vm_exception(FAIL, 26, env);
-	// } else if (VMRESUME && vmcs->launch_state != LAUNCH_STATE_LAUNCHED){
-	// 	vm_exception(FAIL, 5, env);
-	// } else {
-	// 	// /* check settings */
-	// 	// if (invalid settings){
-	// 	// 	/* approppriate vm_exception , env*/
-	// 	// } else {
-	// 	// 	/* attempt to load guest state and PDPTRs as appropraite */
-	// 	// 	/* clear address range monitoring */
-	// 	// 	if (fail){
-	// 	// 		vm entry fails
-	// 	// 	} else {
-	// 	// 		/* attempt to load MSRs*/
-	// 	// 		if (fail_msr){
-	// 	// 			vm entry fails
-	// 	// 		} else {
-	// 	// 			if (VMLAUNCH){
-	// 	// 				vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
-	// 	// 			}
-	// 	// 			if (SMM && entry to SMM control is 0){
-	// 	// 				if ( deactivate dual mintor treatement == 0){
-	// 	// 					smm transfer vmcs = vmcs;
-	// 	// 				}
-	// 	// 				if (exec vmcs ptr == VMCS_CLEAR_ADDRESS){
-	// 	// 					vmcs = vmcs link ptr  //MARK
-	// 	// 				} else {
-	// 	// 					vmcs = exec vmcs ptr; //MARK
-	// 	// 				}
-	// 	// 				leave SMM
-	// 	// 			}
-	// 	// 			vm_exception(SUCCEED, 0, env);
-	// 	// 		}
-	// 	// 	}
-	// 	// }
-	// }
 	LOG_ENTRY
+
+	int cpl = env->segs[R_CS].selector & 0x3;
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+
+	/* again, check DESC_L_MASK 64 bit only ? */
+	if (env->vmx_operation == VMX_DISABLED or
+		!ISSET(env->cr[0], CR0_PE_MASK) or
+		ISSET(env->eflags, VM_MASK) or 
+		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+			LOG("ILLEGAL OPCODE EXCEPTION")
+			raise_exception(env, EXCP06_ILLOP);
+	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+
+		LOG("VM EXIT")
+		/* vm exit */
+	} else if (cpl > 0){
+		LOG("GENERAL PROTECTION EXCEPTION")
+		raise_exception(env, EXCP0D_GPF);
+	} else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
+
+		LOG("INVALID/UNINITIALIZED VMCS")
+		vm_exception(FAIL_INVALID, 0, env);
+	// } else if (/* events blocked by MOV SS */){
+		// vm_exception(FAIL, 26, env);
+	} else if (vmcs->launch_state != LAUNCH_STATE_LAUNCHED){
+		LOG("ERROR: VM RESUME with non-launched VMCS")
+		vm_exception(FAIL, 4, env);
+	} else {
+		// /* check settings */
+		// if (invalid settings){
+		// 	/* approppriate vm_exception , env*/
+		// } else {
+		// 	/* attempt to load guest state and PDPTRs as appropraite */
+		// 	/* clear address range monitoring */
+		// 	if (fail){
+		// 		vm entry fails
+		// 	} else {
+		// 		/* attempt to load MSRs*/
+		// 		if (fail_msr){
+		// 			vm entry fails
+		// 		} else {
+		// 			if (VMLAUNCH){
+		// 				vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
+		// 			}
+		// 			if (SMM && entry to SMM control is 0){
+		// 				if ( deactivate dual mintor treatement == 0){
+		// 					smm transfer vmcs = vmcs;
+		// 				}
+		// 				if (exec vmcs ptr == VMCS_CLEAR_ADDRESS){
+		// 					vmcs = vmcs link ptr  //MARK
+		// 				} else {
+		// 					vmcs = exec vmcs ptr; //MARK
+		// 				}
+		// 				leave SMM
+		// 			}
+		// 			vm_exception(SUCCEED, 0, env);
+		// 		}
+		// 	}
+		// }
+		
+		vmlaunch_load_guest_state(env);
+		clear_address_range_monitoring(env);
+		vmlaunch_load_msrs(env);
+		env->vmx_operation = VMX_NON_ROOT_OPERATION;
+		flush_active_vmcs(env);
+		vm_exception(SUCCEED, 0, env);
+	}
+
+
 	LOG_EXIT
 }
 
@@ -1494,6 +1526,7 @@ void helper_vtx_vmptrst(CPUX86State * env, target_ulong vmcs_addr_phys){
 	// 	vm_exception(SUCCEED,0, env);
 	// }
 	LOG_ENTRY
+	while(1);
 	LOG_EXIT	
 }
 
