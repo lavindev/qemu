@@ -1,6 +1,67 @@
 #ifndef __VTX_H
 #define __VTX_H
 
+/** VMX Exit Basic Reasons */
+#define	VTX_EXIT_EXCP_NMI 0
+#define	VTX_EXIT_EXT_INT 1
+#define	VTX_EXIT_TRIPLE_FAULT 2
+#define	VTX_EXIT_INIT_SIG 3
+#define	VTX_EXIT_SIPI 4
+#define	VTX_EXIT_SMI 5
+#define	VTX_EXIT_OtherSMI 6
+#define	VTX_EXIT_INT_WINDOW 7
+#define	VTX_EXIT_NMI_WINDOW 8
+#define	VTX_EXIT_TASK_SWITCH 9
+#define	VTX_EXIT_CPUID 10
+#define	VTX_EXIT_GETSEC 11
+#define	VTX_EXIT_HLT 12
+#define	VTX_EXIT_INVD 13
+#define	VTX_EXIT_INVLPG 14
+#define	VTX_EXIT_RDPMC 15
+#define	VTX_EXIT_RDTSC 16
+#define	VTX_EXIT_RSM 17
+#define	VTX_EXIT_VMCALL 18
+#define	VTX_EXIT_VMCLEAR 19
+#define	VTX_EXIT_VMLAUNCH 20
+#define	VTX_EXIT_VMPTRLD 21
+#define	VTX_EXIT_VMPTRST 22
+#define	VTX_EXIT_VMREAD 23
+#define	VTX_EXIT_VMRESUME 24
+#define	VTX_EXIT_VMWRITE 25
+#define	VTX_EXIT_VMXOFF 26
+#define	VTX_EXIT_VMXON 27
+#define	VTX_EXIT_CR_ACCESS 28
+#define	VTX_EXIT_MOV_DR 29
+#define	VTX_EXIT_IO 30
+#define	VTX_EXIT_RDMSR 31
+#define	VTX_EXIT_WRMSR 32
+#define	VTX_EXIT_VM_ENTRY_FAIL_GUEST 33
+#define	VTX_EXIT_VM_ENTRY_FAIL_MSR 34
+#define	VTX_EXIT_MWAIT 36
+#define	VTX_EXIT_MONITOR_TRAP 37
+#define	VTX_EXIT_MONITOR 39
+#define	VTX_EXIT_PAUSE  40
+#define	VTX_EXIT_VM_ENTRY_FAIL_MACHINE_CHECK  41
+#define	VTX_EXIT_TPR_THRESHHOLD 43
+#define	VTX_EXIT_APIC_ACCESS 44
+#define	VTX_EXIT_VIRT_EOI 45
+#define	VTX_EXIT_GDTR_IDTR_ACCESS 46
+#define	VTX_EXIT_LDTR_TR_ACCESS 47
+#define	VTX_EXIT_EPT_VIOLATION 48
+#define	VTX_EXIT_EPT_MISCONFIG 49
+#define	VTX_EXIT_INVEPT 50
+#define	VTX_EXIT_RDTSCP 51
+#define	VTX_EXIT_VMX_TIMER_EXP 52
+#define	VTX_EXIT_INVVPID 53
+#define	VTX_EXIT_WBINVD 54
+#define	VTX_EXIT_XSETBV 55
+#define	VTX_EXIT_APIC_WRITE 56
+#define	VTX_EXIT_RDRAND 57
+#define	VTX_EXIT_INVPCID 58
+#define	VTX_EXIT_VMFUNC 59
+#define	VTX_EXIT_RDSEED 61
+#define	VTX_EXIT_XSAVES 63
+#define	VTX_EXIT_XRSTORS 64
 
 /** Reference: 24.2 */
 
@@ -404,6 +465,13 @@ typedef enum vm_exception {
 } vm_exception_t;
 
 
+// typedef struct msr_area_entry {
+
+// 	uint32_t index;
+// 	uint32_t reserved0;
+// 	uint64_t contents;
+
+// } msr_entry_t;
 
 
 #endif

@@ -29,7 +29,7 @@
 #endif
 
 
-static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags);
+static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip);
 
 // copies vmcs from guest physicall addr (arg below) to processor vmcs
 // need to tediously copy each field due to endianness
@@ -1072,6 +1072,50 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 
 }
 
+void cpu_vmx_check_exception(CPUX86State * env, int intno, int error_code, int next_eip_addend, uintptr_t retaddr){
+
+	CPUState *cs = CPU(x86_env_get_cpu(env));
+
+	if (env->vmx_operation != VMX_NON_ROOT_OPERATION)
+		return;
+
+	struct vmcs_vmexit_information_fields fields;
+	memset(&fields, 0, sizeof(struct vmcs_vmexit_information_fields));
+
+	fields.exit_reason.basic_reason = (uint16_t) VTX_EXIT_EXCP_NMI;
+	fields.interruption_info.vector = intno;
+	// Is 0 an error code? QEMU doesn't seem to think so
+	fields.interruption_info.error_code_valid = (error_code) ? 1 : 0; 
+	fields.interruption_info.type = 3;
+	fields.interruption_error_code = error_code;
+	fields.interruption_info.valid = 1;
+
+	switch (intno){
+	case EXCP01_DB:
+		fields.exit_qualification = 0; // table 27-1
+		fields.interruption_info.type = 6;
+		break;
+	case EXCP04_INTO:
+		fields.interruption_info.type = 6;
+		break;
+	case EXCP0E_PAGE:
+		fields.exit_qualification = env->cr[2];
+		break;
+	default:
+		break;
+	}
+
+	vtx_vmexit(env, &fields, next_eip_addend);
+
+
+	/* remove any pending exception */
+    cs->exception_index = -1;
+    env->error_code = 0;
+    env->old_exception = -1;
+	cpu_loop_exit(cs);
+
+}
+
 void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ulong next_eip, target_ulong eflags, int error_code){
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
@@ -1093,7 +1137,7 @@ void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ul
 
 
 
-	vtx_vmexit(env, &fields, next_eip, eflags);
+	vtx_vmexit(env, &fields, next_eip);
 
 	/* remove any pending exception */
     cs->exception_index = -1;
@@ -1105,7 +1149,7 @@ void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ul
 	cpu_loop_exit(cs);
 }
 
-static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip, target_ulong eflags){
+static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields * fields, target_ulong eip){
 
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
 
@@ -1116,16 +1160,8 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	
 	/* 27.2 record exit info */
 	// TODO: some other stuff in 27.2
-	//memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(struct vmcs_vmexit_information_fields));
+	memcpy(&(vmcs->vmcs_vmexit_information_fields), fields, sizeof(struct vmcs_vmexit_information_fields));
 
-	info->exit_reason.basic_reason = 0;
-	info->exit_qualification = env->cr[2];
-	info->interruption_info.vector = 14;
-	info->interruption_info.type = 3;
-	info->interruption_info.error_code_valid = 1;
-	info->interruption_info.valid = 1;
-
-	info->interruption_error_code = 4;
 	/* save guest state */
 
 	g->cr0 = env->cr[0];
@@ -1262,7 +1298,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	// save eip, eflags and esp
 	g->eip = eip;
 	g->esp = env->regs[R_ESP];
-	g->eflags = eflags;
+	g->eflags = env->eflags;
 	cpu_load_eflags(env, 0x1, ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK |
                       VM_MASK));
 
