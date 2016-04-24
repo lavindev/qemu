@@ -4,7 +4,7 @@
 #include "exec/helper-proto.h"
 #include "exec/cpu_ldst.h"
 
-#define ISSET(item, flag) (item & flag)
+#define ISSET(item, flag) ((item) & (flag))
 #define or ||
 #define and &&
 
@@ -12,15 +12,11 @@
 
 #define VMCS_CLEAR_ADDRESS 0xFFFFFFFF
 
-
-
-
-
 #define DEBUG
 #if defined (DEBUG)
-	#define LOG_ENTRY do { printf("ENTRY: %s\n", __FUNCTION__); } while (0);
-	#define LOG_EXIT do {  printf("EXIT: %s\n", __FUNCTION__);  } while (0);
-	#define LOG(x) do { printf("VTX LOG: %s, File: %s, Line: %d\n", x, __FILE__, __LINE__); } while(0);
+	#define LOG_ENTRY do { printf("ENTRY: %s\n", __FUNCTION__); } while (0)
+	#define LOG_EXIT do {  printf("EXIT: %s\n", __FUNCTION__);  } while (0)
+	#define LOG(x) do { printf("VTX LOG: %s, File: %s, Line: %d\n", x, __FILE__, __LINE__); } while(0)
 	#define PRINT(x) do { printf("%s\n", #x); } while(0)
 #else
 	#define LOG_ENTRY
@@ -240,11 +236,11 @@ static void vm_exception(vm_exception_t exception, uint32_t err_number, CPUX86St
 		update_mask = CC_C | CC_P | CC_A | CC_S | CC_Z | CC_O;
 		cpu_load_eflags(env, 0, update_mask);
 	} else if (exception == FAIL_INVALID){
-		LOG("FAIL INVALID")
+		LOG("FAIL INVALID");
 		update_mask = CC_P | CC_A | CC_S | CC_Z | CC_O | CC_C;
 		cpu_load_eflags(env, CC_C, update_mask);
 	} else if(exception == FAIL_VALID){
-		LOG("FAIL VALID")
+		LOG("FAIL VALID");
 		update_mask = CC_C | CC_P | CC_A | CC_S | CC_O | CC_Z;
 		cpu_load_eflags(env, CC_Z, update_mask);
 		// TODO: Set VM instruction error field to ErrNum
@@ -710,7 +706,7 @@ static void vmlaunch_load_msrs(CPUX86State * env){
  */
 void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
@@ -725,7 +721,7 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 		!ISSET(env->cr[4], CR4_VMXE_MASK) || 
 		ISSET(env->eflags, VM_MASK) ||  
 		(ISSET(env->efer, MSR_EFER_LMA) && !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-			LOG("ILLEGAL OP EXCEPTION")
+			LOG("ILLEGAL OP EXCEPTION");
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_DISABLED){
 
@@ -736,7 +732,7 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 			/* non smx */){
 			printf("CPL = %d\n", cpl);
 			printf("MSR = %ld\n", env->msr_ia32_feature_control);
-			LOG("GENERAL PROTECTION EXCEPTION")
+			LOG("GENERAL PROTECTION EXCEPTION");
 			raise_exception(env, EXCP0D_GPF);
 		} else {
 			/* check 4KB align or bits beyond phys range*/
@@ -744,7 +740,7 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 			cpu_memory_rw_debug(cs, vmxon_region_ptr, (uint8_t *)&addr, sizeof(target_ulong), 0);
 
 			if ((addr & 0xFFF) || (sizeof(target_ulong)*8 > TARGET_PHYS_ADDR_SPACE_BITS && addr >> TARGET_PHYS_ADDR_SPACE_BITS)){
-				LOG("Not 4KB aligned, or bits set beyond range")
+				LOG("Not 4KB aligned, or bits set beyond range");
 				vm_exception(FAIL_INVALID, 0, env);
 			} else {
 				
@@ -752,7 +748,7 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 				/* TODO: cleanup, use structs for msr */
 				if ((rev & 0x7FFFFFFF) != (env->msr_ia32_vmx_basic & 0x7FFFFFFF) ||
 					rev < 0 /* rev[31] = 1 */){
-					LOG("rev[30:0] != MSR or rev[31] == 1")
+					LOG("rev[30:0] != MSR or rev[31] == 1");
 					vm_exception(FAIL_INVALID, 0, env);
 				} else {
 					env->vmcs_ptr_register = VMCS_CLEAR_ADDRESS;
@@ -766,7 +762,7 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 
 					clear_address_range_monitoring(env);
 					vm_exception(SUCCEED, 0, env);
-					LOG("<1> In VMX Root Operation")
+					LOG("<1> In VMX Root Operation");
 				}
 			}
 
@@ -774,21 +770,21 @@ void helper_vtx_vmxon(CPUX86State *env, target_ulong vmxon_region_ptr) {
 
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
 		/* VM exit */
-		LOG("VM EXIT")
+		LOG("VM EXIT");
 	} else if (cpl > 0){
-		LOG("GENERAL PROTECTION EXCEPTION")
+		LOG("GENERAL PROTECTION EXCEPTION");
 		raise_exception(env, EXCP0D_GPF);
 	} else {
-		LOG("FAIL");
+		LOG("FAIL");;
 		vm_exception(FAIL, 15, env);
 	}
 
-	LOG_EXIT
+	LOG_EXIT;
 }
 
 void helper_vtx_vmxoff(CPUX86State * env){
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 	int cpl = env->segs[R_CS].selector & 0x3;
 
@@ -797,18 +793,18 @@ void helper_vtx_vmxoff(CPUX86State * env){
 		!ISSET(env->cr[0], CR0_PE_MASK) ||
 		ISSET(env->eflags, VM_MASK) || 
 		(ISSET(env->efer, MSR_EFER_LMA) && !ISSET(env->segs[R_CS].flags, DESC_L_MASK))) {
-			LOG("INVALID OPCODE EXCEPTION")
+			LOG("INVALID OPCODE EXCEPTION");
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
 		/* vm exit */
-		LOG("VM EXIT")
+		LOG("VM EXIT");
 	} else if (cpl > 0){
-		LOG("GENERAL PROTECTION EXCEPTION")
+		LOG("GENERAL PROTECTION EXCEPTION");
 		raise_exception(env, EXCP0D_GPF);
 	// } else if (/* dual monitor - wtf is this? */){
 		// vm_exception(FAIL, 23); // TO, envDO
 	} else {
-		LOG("DISABLING VMX")
+		LOG("DISABLING VMX");
 		env->vmx_operation = VMX_DISABLED;
 		/* unblock init */
 		/* if ia32_smm_monitor[2] == 0, unblock SMIs */
@@ -822,13 +818,13 @@ void helper_vtx_vmxoff(CPUX86State * env){
 	}
 
 
-	LOG_EXIT
+	LOG_EXIT;
 }
 
 
 void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
@@ -851,16 +847,16 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 		cpu_memory_rw_debug(cs, vmcs_addr_phys, (uint8_t *)&addr, sizeof(target_ulong), 0);
 
 		if ((addr & 0xFFF) || ( sizeof(addr)*8 > TARGET_PHYS_ADDR_SPACE_BITS && addr >> 32)) {
-			LOG("FAIL - 9")
+			LOG("FAIL - 9");
 			vm_exception(FAIL, 9, env);
 		} else if (addr == (uint64_t) env->vmxon_ptr_register){
-			LOG("FAIL - 10")
+			LOG("FAIL - 10");
 			vm_exception(FAIL, 10, env);
 		} else {
 			rev = (int32_t) x86_ldl_phys(cs, addr);
 			if ((rev & 0x7FFFFFFF) != (env->msr_ia32_vmx_basic & 0x7FFFFFFF) or
 				(rev < 0 /* processor does not support 1 setting of VMCS shadowing*/)){
-				LOG("FAIL - 11")
+				LOG("FAIL - 11");
 				vm_exception(FAIL, 11, env); // to, envdo
 			} else {
 				env->vmcs_ptr_register = addr;
@@ -872,18 +868,18 @@ void helper_vtx_vmptrld(CPUX86State * env, target_ulong vmcs_addr_phys){
 		}
 	}
 
-	LOG_EXIT
+	LOG_EXIT;
 
 }
 
 void helper_vtx_invept(CPUX86State * env, target_ulong reg, uint64_t mem){
-	LOG_ENTRY
-	LOG_EXIT
+	LOG_ENTRY;
+	LOG_EXIT;
 }
 
 void helper_vtx_invvpid(CPUX86State * env, target_ulong reg, uint64_t mem){
-	LOG_ENTRY
-	LOG_EXIT
+	LOG_ENTRY;
+	LOG_EXIT;
 }
 
 void helper_vtx_vmcall(CPUX86State * env){
@@ -926,13 +922,13 @@ void helper_vtx_vmcall(CPUX86State * env){
 	// 	}
 
 	// }
-	LOG_ENTRY
-	LOG_EXIT
+	LOG_ENTRY;
+	LOG_EXIT;
 }
 
 void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
 
@@ -955,10 +951,10 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 		cpu_memory_rw_debug(cs, vmcs_addr_phys, (uint8_t *)&addr, sizeof(target_ulong), 0);
 
 		if ((addr & 0xFFF) or (sizeof(addr)*8 > TARGET_PHYS_ADDR_SPACE_BITS && addr >> TARGET_PHYS_ADDR_SPACE_BITS)){
-			LOG("FAIL - 2")
+			LOG("FAIL - 2");
 			vm_exception(FAIL, 2, env);
 		} else if (addr == env->vmxon_ptr_register){
-			LOG("FAIL - 3")
+			LOG("FAIL - 3");
 			vm_exception(FAIL, 3, env);
 		} else {
 
@@ -970,23 +966,23 @@ void helper_vtx_vmclear(CPUX86State * env, target_ulong vmcs_addr_phys){
 			// luckily, revision_identifier is the first element in the struct
 			x86_stl_phys(cs, addr, MSR_IA32_VMX_BASIC_DEFAULT & 0x7FFFFFFF);
 			if ((uint64_t)(env->vmcs_ptr_register) == addr){
-				LOG("Resetting vmcs_ptr_register")
+				LOG("Resetting vmcs_ptr_register");
 				env->vmcs_ptr_register = VMCS_CLEAR_ADDRESS;
 			}
-			LOG("VMCS initialized")
+			LOG("VMCS initialized");
 			vm_exception(SUCCEED, 0, env);
 		}
 	}
 
 
-	LOG_EXIT
+	LOG_EXIT;
 
 }
 
 
 void helper_vtx_vmfunc(CPUX86State * env){
-	LOG_ENTRY
-	LOG_EXIT
+	LOG_ENTRY;
+	LOG_EXIT;
 	//target_ulong eax = env->regs[R_EAX];
 
 	/* only used for EPTP switching, not implementing for now */
@@ -996,7 +992,7 @@ void helper_vtx_vmfunc(CPUX86State * env){
 
 void helper_vtx_vmlaunch(CPUX86State * env){
 	
-	LOG_ENTRY
+	LOG_ENTRY;
 
 	int cpl = env->segs[R_CS].selector & 0x3;
 
@@ -1007,23 +1003,23 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		!ISSET(env->cr[0], CR0_PE_MASK) or
 		ISSET(env->eflags, VM_MASK) or 
 		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-			LOG("ILLEGAL OPCODE EXCEPTION")
+			LOG("ILLEGAL OPCODE EXCEPTION");
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
 
-		LOG("VM EXIT")
+		LOG("VM EXIT");
 		/* vm exit */
 	} else if (cpl > 0){
-		LOG("GENERAL PROTECTION EXCEPTION")
+		LOG("GENERAL PROTECTION EXCEPTION");
 		raise_exception(env, EXCP0D_GPF);
 	} else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
 
-		LOG("INVALID/UNINITIALIZED VMCS")
+		LOG("INVALID/UNINITIALIZED VMCS");
 		vm_exception(FAIL_INVALID, 0, env);
 	// } else if (/* events blocked by MOV SS */){
 		// vm_exception(FAIL, 26, env);
 	} else if (vmcs->launch_state != LAUNCH_STATE_CLEAR){
-		LOG("ERROR: VM LAUNCH STATE NOT CLEAR")
+		LOG("ERROR: VM LAUNCH STATE NOT CLEAR");
 		vm_exception(FAIL, 4, env);
 	} else {
 		// /* check settings */
@@ -1068,7 +1064,7 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 	}
 
 
-	LOG_EXIT
+	LOG_EXIT;
 
 }
 
@@ -1078,6 +1074,12 @@ void cpu_vmx_check_exception(CPUX86State * env, int intno, int error_code, int n
 
 	if (env->vmx_operation != VMX_NON_ROOT_OPERATION)
 		return;
+
+	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+
+	struct vmcs_vmexecution_control_fields * exec_cf = &(vmcs->vmcs_vmexecution_control_fields);
+	struct vmcs_vmexit_information_fields * exit_info = &(vmcs->vmcs_vmexit_information_fields);
+	uint32_t exception_bitmap = exec_cf->exception_bitmap;
 
 	struct vmcs_vmexit_information_fields fields;
 	memset(&fields, 0, sizeof(struct vmcs_vmexit_information_fields));
@@ -1090,6 +1092,7 @@ void cpu_vmx_check_exception(CPUX86State * env, int intno, int error_code, int n
 	fields.interruption_error_code = error_code;
 	fields.interruption_info.valid = 1;
 
+	/* assign specific values for vmexit info */
 	switch (intno){
 	case EXCP01_DB:
 		fields.exit_qualification = 0; // table 27-1
@@ -1099,19 +1102,34 @@ void cpu_vmx_check_exception(CPUX86State * env, int intno, int error_code, int n
 		fields.interruption_info.type = 6;
 		break;
 	case EXCP0E_PAGE:
-		fields.exit_qualification = env->cr[2];
+		// see x86_cpu_handle_mmu_fault in helper.c
+		fields.exit_qualification = exit_info->exit_qualification;
 		break;
 	default:
 		break;
 	}
 
-	vtx_vmexit(env, &fields, next_eip_addend);
+	/* determine valid conditions for VMexits */
+	if (intno != EXCP0E_PAGE && ISSET(exception_bitmap, 1UL << intno)){
+		vtx_vmexit(env, &fields, next_eip_addend);
+	} else {
+		// special conditions for handling page faults
+		if ((error_code & exec_cf->page_fault_error_code_mask) == exec_cf->page_fault_error_code_match){
+			LOG("PF exception due to PFEC match");
+			if (ISSET(exception_bitmap, 1UL << intno)) 
+				vtx_vmexit(env, &fields, next_eip_addend);
+		} else {
+			if (!ISSET(exception_bitmap, 1UL << intno)) 
+				vtx_vmexit(env, &fields, next_eip_addend);
+		}
+	}
+
 
 
 	/* remove any pending exception */
-    cs->exception_index = -1;
-    env->error_code = 0;
-    env->old_exception = -1;
+    	cs->exception_index = -1;
+    	env->error_code = 0;
+    	env->old_exception = -1;
 	cpu_loop_exit(cs);
 
 }
@@ -1140,9 +1158,9 @@ void cpu_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target_ul
 	vtx_vmexit(env, &fields, next_eip);
 
 	/* remove any pending exception */
-    cs->exception_index = -1;
-    env->error_code = 0;
-    env->old_exception = -1;
+    	cs->exception_index = -1;
+    	env->error_code = 0;
+    	env->old_exception = -1;
 
   
 
@@ -1155,7 +1173,6 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 
 	struct vmcs_guest_state_area * g = &(vmcs->vmcs_guest_state_area);
 	struct vmcs_host_state_area * h = &(vmcs->vmcs_host_state_area);
-	struct vmcs_vmexit_information_fields * info = &(vmcs->vmcs_vmexit_information_fields);
 	uint32_t vmexit_controls = vmcs->vmcs_vmexit_control_fields.vmexit_controls;
 	
 	/* 27.2 record exit info */
@@ -1448,7 +1465,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	// load eip, esp, eflags
 	env->eip = h->eip;
 	env->regs[R_ESP] = h->esp;
-	env->eflags = 0x1;
+	env->eflags = 0x2;
 
 	// paging stuff, might be important TODO
 
@@ -1461,7 +1478,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 	env->vmx_operation = VMX_ROOT_OPERATION;
 	vm_exception(SUCCEED,0, env);
 
-	LOG_EXIT
+	LOG_EXIT;
 
 }
 
@@ -1469,7 +1486,7 @@ static void vtx_vmexit(CPUX86State * env, struct vmcs_vmexit_information_fields 
 void helper_vtx_vmresume(CPUX86State * env){
 
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 	int cpl = env->segs[R_CS].selector & 0x3;
 
@@ -1480,23 +1497,23 @@ void helper_vtx_vmresume(CPUX86State * env){
 		!ISSET(env->cr[0], CR0_PE_MASK) or
 		ISSET(env->eflags, VM_MASK) or 
 		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
-			LOG("ILLEGAL OPCODE EXCEPTION")
+			LOG("ILLEGAL OPCODE EXCEPTION");
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
 
-		LOG("VM EXIT")
+		LOG("VM EXIT");
 		/* vm exit */
 	} else if (cpl > 0){
-		LOG("GENERAL PROTECTION EXCEPTION")
+		LOG("GENERAL PROTECTION EXCEPTION");
 		raise_exception(env, EXCP0D_GPF);
 	} else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
 
-		LOG("INVALID/UNINITIALIZED VMCS")
+		LOG("INVALID/UNINITIALIZED VMCS");
 		vm_exception(FAIL_INVALID, 0, env);
 	// } else if (/* events blocked by MOV SS */){
 		// vm_exception(FAIL, 26, env);
 	} else if (vmcs->launch_state != LAUNCH_STATE_LAUNCHED){
-		LOG("ERROR: VM RESUME with non-launched VMCS")
+		LOG("ERROR: VM RESUME with non-launched VMCS");
 		vm_exception(FAIL, 4, env);
 	} else {
 		// /* check settings */
@@ -1536,11 +1553,17 @@ void helper_vtx_vmresume(CPUX86State * env){
 		vmlaunch_load_msrs(env);
 		env->vmx_operation = VMX_NON_ROOT_OPERATION;
 		flush_active_vmcs(env);
+
+		if (vmcs->vmcs_vmentry_control_fields.interruption_info.valid){
+			LOG("Need to inject event");
+			printf("injection type = %d\n", vmcs->vmcs_vmentry_control_fields.interruption_info.type);
+		}
+
 		vm_exception(SUCCEED, 0, env);
 	}
 
 
-	LOG_EXIT
+	LOG_EXIT;
 }
 
 void helper_vtx_vmptrst(CPUX86State * env, target_ulong vmcs_addr_phys){
@@ -1561,9 +1584,9 @@ void helper_vtx_vmptrst(CPUX86State * env, target_ulong vmcs_addr_phys){
 	// 	*dest = (uint64_t) env->vmcs;
 	// 	vm_exception(SUCCEED,0, env);
 	// }
-	LOG_ENTRY
+	LOG_ENTRY;
 	while(1);
-	LOG_EXIT	
+	LOG_EXIT;
 }
 
 static int32_t get_vmcs_offset16(target_ulong vmcs_field_encoding, int32_t is_write){
@@ -1684,7 +1707,7 @@ static int32_t get_vmcs_offset64(target_ulong vmcs_field_encoding, int32_t is_wr
 		break;
 
 	}
-	LOG("Encoding not found")
+	LOG("Encoding not found");
 	printf("Encoding = %d\n", vmcs_field_encoding);
 	return -1;
 }	
@@ -1893,7 +1916,7 @@ static int32_t get_vmcs_offset_target(target_ulong vmcs_field_encoding, int32_t 
 
 void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_field_encoding){
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
@@ -1908,11 +1931,11 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION /* AND shadow stuff */){
 		/* vm exit */
 	} else if (cpl > 0){
-		LOG("GEN PROTECTION FAULT")
+		LOG("GEN PROTECTION FAULT");
 		raise_exception(env, EXCP0D_GPF);
 	} else if ((env->vmx_operation == VMX_ROOT_OPERATION and env->vmcs_ptr_register == VMCS_CLEAR_ADDRESS) or
 			   (env->vmx_operation == VMX_NON_ROOT_OPERATION /*and  vmcs link ptr */)){
-		LOG("FAIL_INVALID")
+		LOG("FAIL_INVALID");
 		vm_exception(FAIL_INVALID, 0, env);
 	} else {
 
@@ -1924,15 +1947,15 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 				case 0:	/* 16 bit field */
 					offset = get_vmcs_offset16(vmcs_field_encoding, 0);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						env->vmread_output.vmcs_encoding = offset;
 					} else {
-						LOG("VMREAD working...")
+						LOG("VMREAD working...");
 						env->vmread_output.vmread_field = x86_lduw_phys(cs, env->vmcs_ptr_register + offset);
 						printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
@@ -1942,15 +1965,15 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 				case 1: /* 64 bit field */
 					offset = get_vmcs_offset64(vmcs_field_encoding, 0);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						env->vmread_output.vmcs_encoding = offset;
 					} else {
-						LOG("VMREAD working...")
+						LOG("VMREAD working...");
 						if (vmcs_field_encoding & 0x02)
 							env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
 						else
@@ -1965,15 +1988,15 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 				case 2: /* 32 bit field */
 					offset = get_vmcs_offset32(vmcs_field_encoding, 0);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						env->vmread_output.vmcs_encoding = offset;
 					} else {
-						LOG("VMREAD working...")
+						LOG("VMREAD working...");
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
 						printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
@@ -1983,15 +2006,15 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 				case 3: /* target ulong width field */
 					offset = get_vmcs_offset_target(vmcs_field_encoding, 0);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						env->vmread_output.vmcs_encoding = offset;
 					} else {
-						LOG("VMREAD working...")
+						LOG("VMREAD working...");
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
 						printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
@@ -1999,18 +2022,18 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					}
 					break;
 				default:
-					LOG("NO MATCH")
+					LOG("NO MATCH");
 					break;
 			}
 
 		} else {
-			LOG("unsupported VMCS Component")
+			LOG("unsupported VMCS Component");
 			vm_exception(FAIL, 12, env);
 		}
 
 	} 
 	// else if (src op no correpsonse){
-	// 	LOG("unsupported VMCS Component")
+	// 	LOG("unsupported VMCS Component");
 	// 	vm_exception(FAIL, 12, env);
 	// } else {
 	// 	// if (env->vmx_operation == VMX_ROOT_OPERATION){
@@ -2020,14 +2043,14 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 	// 	// }
 	// 	// vm_exception(SUCCEED,0, env);
 	// }
-	LOG_EXIT	
+	LOG_EXIT;
 }
 
 
 
 void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, target_ulong data){
 
-	LOG_ENTRY
+	LOG_ENTRY;
 
 
 	CPUState *cs = CPU(x86_env_get_cpu(env));
@@ -2055,13 +2078,13 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 				case 0:	/* 16 bit field */
 					offset = get_vmcs_offset16(vmcs_field_encoding, 1);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						
 					} else {
-						LOG("VMWRITE working...")
+						LOG("VMWRITE working...");
 						x86_stw_phys(cs, env->vmcs_ptr_register + offset, data);
 						memcpy((uint16_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint16_t));
 						vm_exception(SUCCEED,0, env);
@@ -2071,13 +2094,13 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 				case 1: /* 64 bit field */
 					offset = get_vmcs_offset64(vmcs_field_encoding, 1);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						
 					} else {
-						LOG("VMWRITE working...")
+						LOG("VMWRITE working...");
 						if (vmcs_field_encoding & 0x02){
 							x86_stl_phys(cs, env->vmcs_ptr_register + offset + (sizeof(uint64_t)/2), data);
 							memcpy((uint32_t *) ((unsigned char *)(env->processor_vmcs) + offset) + (sizeof(uint64_t)/2), &data, sizeof(uint32_t));
@@ -2095,13 +2118,13 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 				case 2: /* 32 bit field */
 					offset = get_vmcs_offset32(vmcs_field_encoding, 1);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						
 					} else {
-						LOG("VMWRITE working...")
+						LOG("VMWRITE working...");
 						x86_stl_phys(cs, env->vmcs_ptr_register + offset, data);
 						//update_processor_vmcs(env);
 						memcpy((uint32_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint32_t));
@@ -2112,13 +2135,13 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 				case 3: /* target ulong width field */
 					offset = get_vmcs_offset_target(vmcs_field_encoding, 1);
 					if (offset == -1){
-						LOG("offset = -1")
+						LOG("offset = -1");
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
-						LOG("offset = -2")
+						LOG("offset = -2");
 						
 					} else {
-						LOG("VMWRITE working...")
+						LOG("VMWRITE working...");
 						x86_stl_phys(cs, env->vmcs_ptr_register + offset, data);
 						//update_processor_vmcs(env);
 						memcpy((uint32_t *) ((unsigned char *)(env->processor_vmcs) + offset), &data, sizeof(uint32_t));
@@ -2127,7 +2150,7 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 					}
 					break;
 				default:
-					LOG("NO MATCH")
+					LOG("NO MATCH");
 					break;
 			}
 		} else {
@@ -2137,6 +2160,6 @@ void helper_vtx_vmwrite(CPUX86State * env, target_ulong vmcs_field_encoding, tar
 	}
 
 	// note: some execution paths do not end up here
-	LOG_EXIT
+	LOG_EXIT;
 }
 

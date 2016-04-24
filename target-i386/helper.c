@@ -978,11 +978,18 @@ do_check_protect_pse36:
           (env->cr[4] & CR4_PAE_MASK)) ||
          (env->cr[4] & CR4_SMEP_MASK)))
         error_code |= PG_ERROR_I_D_MASK;
-    if (env->intercept_exceptions & (1 << EXCP0E_PAGE)) {
+    
+    if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
+        // assumuing direct exit 
+        vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+        vmcs->vmcs_vmexit_information_fields.exit_qualification = addr;
+        
+    } else if (env->intercept_exceptions & (1 << EXCP0E_PAGE)) {
         /* cr2 is not modified in case of exceptions */
         x86_stq_phys(cs,
                  env->vm_vmcb + offsetof(struct vmcb, control.exit_info_2),
                  addr);
+
     } else {
         env->cr[2] = addr;
     }
