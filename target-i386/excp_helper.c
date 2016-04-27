@@ -117,7 +117,7 @@ void raise_exception_err(CPUX86State *env, int exception_index,
                          int error_code)
 {
     if (env->vmx_operation == VMX_NON_ROOT_OPERATION) {
-        printf("Mode %d, Exception %d err=%d\n", env->vmx_operation, exception_index, error_code);
+        printf("Mode %d, Exception %d err=%d, eip = %x\n", env->vmx_operation, exception_index, error_code, env->eip);
     }
     raise_interrupt2(env, exception_index, 0, error_code, 0, 0);
 }
@@ -126,7 +126,7 @@ void raise_exception_err_ra(CPUX86State *env, int exception_index,
                             int error_code, uintptr_t retaddr)
 {
     if (env->vmx_operation == VMX_NON_ROOT_OPERATION) {
-        printf("Mode %d, Exception %d err=%d\n", env->vmx_operation, exception_index, error_code);
+        printf("Mode %d, Exception %d err=%d, eip = %x\n", env->vmx_operation, exception_index, error_code, env->eip);
     }
     raise_interrupt2(env, exception_index, 0, error_code, 0, retaddr);
 }
@@ -134,7 +134,7 @@ void raise_exception_err_ra(CPUX86State *env, int exception_index,
 void raise_exception(CPUX86State *env, int exception_index)
 {
     if (env->vmx_operation == VMX_NON_ROOT_OPERATION) {
-        printf("Mode %d, Exception %d\n", env->vmx_operation, exception_index);
+        printf("Mode %d, Exception %d, eip = %x\n", env->vmx_operation, exception_index, env->eip);
     }
     raise_interrupt2(env, exception_index, 0, 0, 0, 0);
 }
@@ -142,7 +142,7 @@ void raise_exception(CPUX86State *env, int exception_index)
 void raise_exception_ra(CPUX86State *env, int exception_index, uintptr_t retaddr)
 {
     if (env->vmx_operation == VMX_NON_ROOT_OPERATION) {
-        printf("Mode %d, Exception %d\n", env->vmx_operation, exception_index);
+        printf("Mode %d, Exception %d, eip = %x\n", env->vmx_operation, exception_index, env->eip);
     }
     raise_interrupt2(env, exception_index, 0, 0, 0, retaddr);
 }

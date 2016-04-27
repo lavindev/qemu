@@ -22,6 +22,7 @@
 	#define LOG_ENTRY
 	#define LOG_EXIT
 	#define LOG(x)
+	#define PRINT(x)
 #endif
 
 
@@ -671,7 +672,9 @@ static void vmlaunch_load_guest_state(CPUX86State * env){
 	//{
 		// watch out for 64 bit
 		env->regs[R_ESP] = g->esp;
+		printf("Host EIP was %x\n", env->eip);
 		env->eip = g->eip;
+		printf("Guest EIP loaded to %x\n", env->eip);
 		// /env->eflags = g->eflags;
 		cpu_load_eflags(env, g->eflags, 0xFFFFFFFF);
 	//}
@@ -995,8 +998,10 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 	LOG_ENTRY;
 
 	int cpl = env->segs[R_CS].selector & 0x3;
-
+	CPUState *cs = CPU(x86_env_get_cpu(env));
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+	// grab launch state from in memory vmcs, since it is only maintained there
+	uint32_t launch_state = x86_ldl_phys(cs, env->vmcs_ptr_register + offsetof(vtx_vmcs_t, launch_state));
 
 	/* again, check DESC_L_MASK 64 bit only ? */
 	if (env->vmx_operation == VMX_DISABLED or
@@ -1018,7 +1023,7 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		vm_exception(FAIL_INVALID, 0, env);
 	// } else if (/* events blocked by MOV SS */){
 		// vm_exception(FAIL, 26, env);
-	} else if (vmcs->launch_state != LAUNCH_STATE_CLEAR){
+	} else if (launch_state != LAUNCH_STATE_CLEAR){
 		LOG("ERROR: VM LAUNCH STATE NOT CLEAR");
 		vm_exception(FAIL, 4, env);
 	} else {
@@ -1057,12 +1062,14 @@ void helper_vtx_vmlaunch(CPUX86State * env){
 		vmlaunch_load_guest_state(env);
 		clear_address_range_monitoring(env);
 		vmlaunch_load_msrs(env);
+		
 		vmcs->launch_state = LAUNCH_STATE_LAUNCHED;
+		x86_stl_phys(cs, env->vmcs_ptr_register + offsetof(vtx_vmcs_t, launch_state), LAUNCH_STATE_LAUNCHED);
+
 		env->vmx_operation = VMX_NON_ROOT_OPERATION;
 		flush_active_vmcs(env);
 		vm_exception(SUCCEED, 0, env);
 	}
-
 
 	LOG_EXIT;
 
@@ -1104,6 +1111,7 @@ void cpu_vmx_check_exception(CPUX86State * env, int intno, int error_code, int n
 	case EXCP0E_PAGE:
 		// see x86_cpu_handle_mmu_fault in helper.c
 		fields.exit_qualification = exit_info->exit_qualification;
+		printf("EIP = %x\n", env->eip);
 		break;
 	default:
 		break;
@@ -1489,14 +1497,18 @@ void helper_vtx_vmresume(CPUX86State * env){
 	LOG_ENTRY;
 
 	int cpl = env->segs[R_CS].selector & 0x3;
+	CPUState *cs = CPU(x86_env_get_cpu(env));
 
 	vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
 
+	// grab launch state from in memory vmcs, since it is only maintained there
+	uint32_t launch_state = x86_ldl_phys(cs, env->vmcs_ptr_register + offsetof(vtx_vmcs_t, launch_state));
+
 	/* again, check DESC_L_MASK 64 bit only ? */
-	if (env->vmx_operation == VMX_DISABLED or
-		!ISSET(env->cr[0], CR0_PE_MASK) or
-		ISSET(env->eflags, VM_MASK) or 
-		(ISSET(env->efer, MSR_EFER_LMA) and !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
+	if (env->vmx_operation == VMX_DISABLED ||
+		!ISSET(env->cr[0], CR0_PE_MASK) ||
+		ISSET(env->eflags, VM_MASK) || 
+		(ISSET(env->efer, MSR_EFER_LMA) && !ISSET(env->segs[R_CS].flags, DESC_L_MASK))){
 			LOG("ILLEGAL OPCODE EXCEPTION");
 			raise_exception(env, EXCP06_ILLOP);
 	} else if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
@@ -1506,13 +1518,13 @@ void helper_vtx_vmresume(CPUX86State * env){
 	} else if (cpl > 0){
 		LOG("GENERAL PROTECTION EXCEPTION");
 		raise_exception(env, EXCP0D_GPF);
-	} else if (vmcs == NULL or  (uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
+	} else if (vmcs == NULL ||(uint64_t)vmcs == VMCS_CLEAR_ADDRESS){
 
 		LOG("INVALID/UNINITIALIZED VMCS");
 		vm_exception(FAIL_INVALID, 0, env);
 	// } else if (/* events blocked by MOV SS */){
 		// vm_exception(FAIL, 26, env);
-	} else if (vmcs->launch_state != LAUNCH_STATE_LAUNCHED){
+	} else if (launch_state != LAUNCH_STATE_LAUNCHED){
 		LOG("ERROR: VM RESUME with non-launched VMCS");
 		vm_exception(FAIL, 4, env);
 	} else {
@@ -1957,7 +1969,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					} else {
 						LOG("VMREAD working...");
 						env->vmread_output.vmread_field = x86_lduw_phys(cs, env->vmcs_ptr_register + offset);
-						printf("Got value %d\n", env->vmread_output.vmread_field);
+						// printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -1966,7 +1978,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					offset = get_vmcs_offset64(vmcs_field_encoding, 0);
 					if (offset == -1){
 						LOG("offset = -1");
-						printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
+						// printf("for vmcs_field_encoding = %d\n", vmcs_field_encoding);
 						env->vmread_output.vmcs_encoding = offset;
 					} else if (offset == -2){
 						vm_exception(FAIL, 13, env);
@@ -1979,7 +1991,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 						else
 							env->vmread_output.vmread_field = x86_ldq_phys(cs, env->vmcs_ptr_register + offset);
 						
-						printf("Got value %d\n", env->vmread_output.vmread_field);
+						// printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -1998,7 +2010,7 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					} else {
 						LOG("VMREAD working...");
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
-						printf("Got value %d\n", env->vmread_output.vmread_field);
+						// printf("Got value %d\n", env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}
@@ -2016,7 +2028,8 @@ void helper_vtx_vmread(CPUX86State * env, target_ulong dest, target_ulong vmcs_f
 					} else {
 						LOG("VMREAD working...");
 						env->vmread_output.vmread_field = x86_ldl_phys(cs, env->vmcs_ptr_register + offset);
-						printf("Got value %d\n", env->vmread_output.vmread_field);
+						if (0x6400 == vmcs_field_encoding)
+							printf("exit_qualification = %d (%x)\n", env->vmread_output.vmread_field, env->vmread_output.vmread_field);
 						env->vmread_output.vmcs_encoding = vmcs_field_encoding;
 						vm_exception(SUCCEED,0, env);
 					}

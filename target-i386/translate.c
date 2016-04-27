@@ -6913,12 +6913,14 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
 #endif
     case 0xfa: /* cli */
         if (!s->vm86) {
+            printf("notvm86: s->iopl is %d, cpl is %d\n", s->iopl, s->cpl);
             if (s->cpl <= s->iopl) {
                 gen_helper_cli(cpu_env);
             } else {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
             }
         } else {
+            printf("vm86: s->iopl is %d\n", s->iopl);
             if (s->iopl == 3) {
                 gen_helper_cli(cpu_env);
             } else {
@@ -7196,8 +7198,16 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         /* vtx calls */
         switch (modrm){
             case 0xc1: gen_helper_vtx_vmcall(cpu_env); break;
-            case 0xc2: gen_helper_vtx_vmlaunch(cpu_env); break;
-            case 0xc3: gen_helper_vtx_vmresume(cpu_env); break;
+            case 0xc2: 
+                gen_helper_vtx_vmlaunch(cpu_env); 
+                tcg_gen_exit_tb(0);
+                s->is_jmp = DISAS_TB_JUMP;
+                break;
+            case 0xc3: 
+                gen_helper_vtx_vmresume(cpu_env);
+                tcg_gen_exit_tb(0);
+                s->is_jmp = DISAS_TB_JUMP;
+                break;
             case 0xc4: gen_helper_vtx_vmxoff(cpu_env); break;
             case 0xd4: gen_helper_vtx_vmfunc(cpu_env); break;
             default: break;
@@ -7829,13 +7839,10 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
         gen_helper_vtx_vmread(cpu_env, cpu_T[0], cpu_regs[reg]);
 
         if ((int)(env->vmread_output.vmcs_encoding) >= 0){
-            printf("encoding: %d\n", env->vmread_output.vmcs_encoding);
             tcg_gen_ld_tl(cpu_T[0], cpu_env, offsetof(CPUX86State, vmread_output.vmread_field));
             gen_ldst_modrm(env, s, modrm, MO_32, OR_TMP0, 1);
             set_cc_op(s, CC_OP_EFLAGS);
             //env, s, modrm, MO_32, OR_TMP0, 1
-        } else {
-            printf("BAD BAD BAD BAD\n");
         }
         break;    
     case 0x179: // vmwrite 
