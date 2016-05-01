@@ -6916,6 +6916,8 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             printf("notvm86: s->iopl is %d, cpl is %d\n", s->iopl, s->cpl);
             if (s->cpl <= s->iopl) {
                 gen_helper_cli(cpu_env);
+            } else if (s->iopl < s->cpl && s->cpl < 3 && (s->flags & HF_PVI_MASK)){
+                gen_helper_cli_vif(cpu_env);
             } else {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
             }
@@ -6923,6 +6925,8 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             printf("vm86: s->iopl is %d\n", s->iopl);
             if (s->iopl == 3) {
                 gen_helper_cli(cpu_env);
+            } else if (s->iopl < 3 && (s->flags & HF_VME_MASK)){
+                gen_helper_cli_vif(cpu_env);
             } else {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
             }
@@ -6941,12 +6945,28 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
                 /* give a chance to handle pending irqs */
                 gen_jmp_im(s->pc - s->cs_base);
                 gen_eob(s);
+            } else if (s->iopl < s->cpl && s->cpl == 3 && (s->flags & HF_PVI_MASK)) {
+                gen_helper_sti_vif(cpu_env);
+
+                if (!(s->tb->flags & HF_INHIBIT_IRQ_MASK))
+                    gen_helper_set_inhibit_irq(cpu_env);
+                /* give a chance to handle pending irqs */
+                gen_jmp_im(s->pc - s->cs_base);
+                gen_eob(s);
             } else {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
             }
         } else {
             if (s->iopl == 3) {
                 goto gen_sti;
+            } else if (s->iopl < 3 && (s->flags & HF_PVI_MASK) && (s->flags & HF_VME_MASK)) {
+                gen_helper_sti_vif(cpu_env);
+
+                if (!(s->tb->flags & HF_INHIBIT_IRQ_MASK))
+                    gen_helper_set_inhibit_irq(cpu_env);
+                /* give a chance to handle pending irqs */
+                gen_jmp_im(s->pc - s->cs_base);
+                gen_eob(s);
             } else {
                 gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
             }

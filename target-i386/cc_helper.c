@@ -352,10 +352,25 @@ void helper_cli(CPUX86State *env)
     env->eflags &= ~IF_MASK;
 }
 
+void helper_cli_vif(CPUX86State *env)
+{
+    env->eflags &= ~VIF_MASK;
+}
+
 void helper_sti(CPUX86State *env)
 {
     env->eflags |= IF_MASK;
 }
+
+void helper_sti_vif(CPUX86State *env)
+{
+    if (env->eflags & VIP_MASK) {
+        raise_exception_ra(env, EXCP0D_GPF, GETPC());
+    } else {
+        env->eflags |= VIF_MASK;
+    }
+}
+
 
 void helper_clac(CPUX86State *env)
 {

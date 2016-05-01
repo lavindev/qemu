@@ -672,6 +672,16 @@ void cpu_x86_update_cr4(CPUX86State *env, uint32_t new_cr4)
         env->hflags |= HF_SMAP_MASK;
     }
 
+    /* PVI/VME hflags */
+    env->hflags &= ~HF_PVI_MASK;
+    if (new_cr4 & CR4_PVI_MASK){
+        env->hflags |= HF_PVI_MASK;
+    }
+    env->hflags &= ~HF_VME_MASK;
+    if (new_cr4 & CR4_VME_MASK){
+        env->hflags |= HF_VME_MASK;
+    }
+
     env->cr[4] = new_cr4;
 }
 
