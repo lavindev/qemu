@@ -9,10 +9,9 @@
 #define and &&
 
 // #define INCLUDE
-
 #define VMCS_CLEAR_ADDRESS 0xFFFFFFFF
 
-#define DEBUG
+// #define DEBUG
 #if defined (DEBUG)
 	#define LOG_ENTRY do { printf("ENTRY: %s\n", __FUNCTION__); } while (0)
 	#define LOG_EXIT do {  printf("EXIT: %s\n", __FUNCTION__);  } while (0)
