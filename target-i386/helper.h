@@ -214,7 +214,7 @@ DEF_HELPER_2(vtx_vmptrld, void, env, tl)
 DEF_HELPER_2(vtx_vmclear, void, env, tl)
 DEF_HELPER_3(vtx_vmwrite, void, env, tl, tl)
 
-//DEF_HELPER_2(vmx_check_intercept, void, env, i32, tl, tl)
+DEF_HELPER_4(vmx_check_intercept, void, env, i32, tl, i32)
 
 DEF_HELPER_3(vtx_invept, void, env, tl, i64)
 DEF_HELPER_3(vtx_invvpid, void, env, tl, i64)
