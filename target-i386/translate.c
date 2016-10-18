@@ -4347,7 +4347,8 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
     s->pc++;
 
     if (env->vmx_operation == VMX_NON_ROOT_OPERATION) {
-        printf("Running opcode %d at %u\n", b, s->pc);
+        printf("Running opcode %x at %x\n", b, s->pc);
+        if (b == 0) while(1);
     }
 
 

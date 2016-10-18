@@ -990,8 +990,9 @@ do_check_protect_pse36:
         error_code |= PG_ERROR_I_D_MASK;
     
     if (env->vmx_operation == VMX_NON_ROOT_OPERATION){
-        // assumuing direct exit 
+        // assuming direct exit
         vtx_vmcs_t * vmcs = (vtx_vmcs_t *) (env->processor_vmcs);
+        printf("EXIT QUALIFICATION SET TO %lx\n", (uint64_t)addr);
         vmcs->vmcs_vmexit_information_fields.exit_qualification = addr;
         
     } else if (env->intercept_exceptions & (1 << EXCP0E_PAGE)) {

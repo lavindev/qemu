@@ -1245,7 +1245,6 @@ void cpu_vmx_check_exception(CPUX86State *env, int intno, int error_code, int ne
         return;
 
     LOG_ENTRY;
-    while(1);
     vtx_vmcs_t *vmcs = (vtx_vmcs_t * )(env->processor_vmcs);
 
     struct vmcs_vmexecution_control_fields *exec_cf = &(vmcs->vmcs_vmexecution_control_fields);
@@ -1288,9 +1287,11 @@ void cpu_vmx_check_exception(CPUX86State *env, int intno, int error_code, int ne
         // special conditions for handling page faults
         if ((error_code & exec_cf->page_fault_error_code_mask) == exec_cf->page_fault_error_code_match) {
             LOG("PF exception due to PFEC match");
+            printf("exception bitmap = %x\n", exception_bitmap);
             if (ISSET(exception_bitmap, 1UL << intno))
                 vtx_vmexit(env, &fields, next_eip_addend);
         } else {
+            printf("exception bitmap = %x\n", exception_bitmap);
             if (!ISSET(exception_bitmap, 1UL << intno))
                 vtx_vmexit(env, &fields, next_eip_addend);
         }
@@ -1339,7 +1340,7 @@ void helper_vmx_check_intercept(CPUX86State * env, uint32_t basic_reason, target
     cpu_loop_exit(cs);
 }
 
-static void vtx_vmexit(CPUX86State *env, struct vmcs_vmexit_information_fields *fields, target_ulong eip) {
+static void vtx_vmexit(CPUX86State *env, struct vmcs_vmexit_information_fields *fields, target_ulong next_eip_addend) {
 
     LOG_ENTRY;
 
@@ -1487,7 +1488,8 @@ static void vtx_vmexit(CPUX86State *env, struct vmcs_vmexit_information_fields *
     g->idtr.limit = env->idt.limit;
 
     // save eip, eflags and esp
-    g->eip = eip;
+    printf("g->eip set to %x\n", env->eip + next_eip_addend);
+    g->eip = env->eip + next_eip_addend;
     g->esp = env->regs[R_ESP];
     g->eflags = env->eflags;
     cpu_load_eflags(env, 0x1, ~(CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C | DF_MASK |
